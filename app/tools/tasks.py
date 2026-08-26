@@ -39,7 +39,12 @@ def get_tasks():
 
     return load_tasks()
 
-def create_task(title, due_date=None, priority="medium"):
+def create_task(
+    title,
+    due_date=None,
+    priority="medium",
+    estimated_minutes=None,
+    ):
     """
     Create a new task.
 
@@ -66,9 +71,50 @@ def create_task(title, due_date=None, priority="medium"):
         "due_date": due_date,
         "priority": priority,
         "status": "incomplete",
+        "estimated_minutes": estimated_minutes,
     }
 
     tasks.append(new_task)
     save_tasks(tasks)
 
     return new_task
+
+def update_task(
+    task_id,
+    title=None,
+    due_date=None,
+    priority=None,
+    status=None,
+    estimated_minutes=None,
+):
+    """
+    Update an existing task.
+
+    Only provided fields are changed.
+    """
+
+    tasks = load_tasks()
+
+    for task in tasks:
+        if task["id"] != task_id:
+            continue
+
+        if title is not None:
+            task["title"] = title
+
+        if due_date is not None:
+            task["due_date"] = due_date
+
+        if priority is not None:
+            task["priority"] = priority
+
+        if status is not None:
+            task["status"] = status
+
+        if estimated_minutes is not None:
+            task["estimated_minutes"] = estimated_minutes
+
+        save_tasks(tasks)
+        return task
+
+    return None

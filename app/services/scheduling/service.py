@@ -8,12 +8,16 @@ from services.scheduling.recommendation import (
     RecommendationService,
 )
 
+from services.scheduling.urgency import UrgencyService
+from tools.tasks import get_tasks
+
 class SchedulingService:
 
     def __init__(self):
         self.calendar = CalendarService()
         self.availability = AvailabilityService()
         self.recommendation = RecommendationService()
+        self.urgency = UrgencyService()
 
     def find_free_time(
         self,
@@ -209,6 +213,89 @@ class SchedulingService:
 
         if recommendation is None:
             return None
+
+        return {
+            "task": task,
+            "preference": preference,
+            "recommendation": recommendation,
+        }
+
+    def get_next_task_to_schedule(self):
+        """
+        Return the incomplete task with the highest urgency score.
+
+        In-progress tasks are also considered.
+        """
+
+        tasks = get_tasks()
+
+        eligible_tasks = [
+            task
+            for task in tasks
+            if task.get("status") in {
+                "incomplete",
+                "in progress",
+            }
+        ]
+
+        if not eligible_tasks:
+            return None
+
+        ranked_tasks = self.urgency.rank_tasks(
+            eligible_tasks
+        )
+
+        return ranked_tasks[0]
+
+    def get_next_task_recommendation(
+        self,
+        start_time,
+        end_time,
+        calendar_name=None,
+        earliest_hour=7,
+        latest_hour=23,
+    ):
+        """
+        Identify the most urgent task and recommend a
+        specific time to work on it.
+        """
+
+        task = self.get_next_task_to_schedule()
+
+        if task is None:
+            return None
+
+        duration_minutes = task.get(
+            "estimated_minutes"
+        )
+
+        if duration_minutes is None:
+            return {
+                "task": task,
+                "error": (
+                    "The task does not have an "
+                    "estimated duration."
+                ),
+            }
+
+        memories = search_memories(
+            "study preferences"
+        )
+
+        preference = None
+
+        if memories:
+            preference = memories[0]["content"]
+
+        recommendation = self.recommend_time(
+            start_time=start_time,
+            end_time=end_time,
+            duration_minutes=duration_minutes,
+            preference=preference,
+            calendar_name=calendar_name,
+            earliest_hour=earliest_hour,
+            latest_hour=latest_hour,
+        )
 
         return {
             "task": task,

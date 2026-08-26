@@ -1,6 +1,7 @@
 from tools.tasks import (
     get_tasks,
     create_task,
+    update_task,
 )
 
 from tools.memory import (
@@ -41,6 +42,7 @@ TOOL_FUNCTIONS = {
     "find_free_time": find_free_time,
     "recommend_task_time": recommend_task_time,
     "schedule_task": schedule_task,
+    "update_task": update_task,
 }
 
 
@@ -76,10 +78,16 @@ TOOL_DEFINITIONS = [
             "type": "object",
             "properties": {
                 "title": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "The title of the task."
                 },
                 "due_date": {
-                    "type": "string"
+                    "type": "string",
+                    "description": (
+                        "The due date in YYYY-MM-DD format. "
+                        "Convert relative dates such as tomorrow "
+                        "into an exact date."
+                    )
                 },
                 "priority": {
                     "type": "string",
@@ -87,7 +95,15 @@ TOOL_DEFINITIONS = [
                         "low",
                         "medium",
                         "high"
-                    ]
+                    ],
+                    "description": "Task priority."
+                },
+                "estimated_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "Optional estimated amount of time needed "
+                        "to complete the task, in minutes."
+                    )
                 }
             },
             "required": [
@@ -495,6 +511,50 @@ TOOL_DEFINITIONS = [
                 "start_time",
                 "end_time",
             ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "update_task",
+        "description": (
+            "Update an existing task. Use this when the user "
+            "provides new information about a task such as "
+            "its duration, due date, priority, status, or title."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "integer",
+                    "description": "ID of the task to update.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "New task title.",
+                },
+                "due_date": {
+                    "type": "string",
+                    "description": "New due date in YYYY-MM-DD format.",
+                },
+                "priority": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high"],
+                    "description": "New task priority.",
+                },
+                "status": {
+                    "type": "string",
+                    "description": "New task status.",
+                },
+                "estimated_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "Estimated time required to complete "
+                        "the task, in minutes."
+                    ),
+                },
+            },
+            "required": ["task_id"],
         },
     },
 ]

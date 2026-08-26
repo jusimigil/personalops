@@ -11,8 +11,7 @@ class RecommendationService:
         preference=None,
     ):
         """
-        Recommend a specific study/work session
-        within the available blocks.
+        Recommend a specific session within available blocks.
         """
 
         if not free_blocks:
@@ -37,24 +36,58 @@ class RecommendationService:
             if block_end - block_start < duration:
                 continue
 
-            # Default candidate starts at the
-            # beginning of the free block.
+            # Default candidate: beginning of the block.
             candidate_start = block_start
-            candidate_end = (
-                candidate_start + duration
-            )
 
             candidates.append({
                 "start": candidate_start,
-                "end": candidate_end,
+                "end": candidate_start + duration,
                 "duration_minutes": duration_minutes,
             })
+
+            # ------------------------------------------
+            # Add evening candidate when appropriate
+            # ------------------------------------------
+
+            if preference:
+
+                preference_lower = preference.lower()
+
+                if (
+                    "difficult" in preference_lower
+                    and "night" in preference_lower
+                ):
+                    preferred_start = block_start.replace(
+                        hour=20,
+                        minute=0,
+                        second=0,
+                        microsecond=0,
+                    )
+
+                    # If 8 PM is before the block,
+                    # start at the block beginning.
+                    if preferred_start < block_start:
+                        preferred_start = block_start
+
+                    preferred_end = (
+                        preferred_start + duration
+                    )
+
+                    if preferred_end <= block_end:
+
+                        candidates.append({
+                            "start": preferred_start,
+                            "end": preferred_end,
+                            "duration_minutes": duration_minutes,
+                        })
 
         if not candidates:
             return None
 
-        # Prefer evening sessions when the user
-        # prefers studying difficult subjects at night.
+        # ------------------------------------------
+        # Prefer evening candidate
+        # ------------------------------------------
+
         if preference:
 
             preference_lower = preference.lower()
@@ -64,14 +97,11 @@ class RecommendationService:
                 and "night" in preference_lower
             ):
 
-                evening_candidates = []
-
-                for candidate in candidates:
-
-                    if candidate["start"].hour >= 18:
-                        evening_candidates.append(
-                            candidate
-                        )
+                evening_candidates = [
+                    candidate
+                    for candidate in candidates
+                    if candidate["start"].hour >= 18
+                ]
 
                 if evening_candidates:
                     candidates = evening_candidates
