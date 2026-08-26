@@ -1,0 +1,130 @@
+from services.calendar.service import CalendarService
+from services.scheduling.service import SchedulingService
+from services.approval import request_confirmation
+
+calendar_service = CalendarService()
+scheduling_service = SchedulingService()
+
+
+def get_calendars():
+    """
+    Return the user's available Apple Calendars.
+    """
+
+    return calendar_service.get_calendars()
+
+
+def create_calendar_event(
+    title,
+    start_time,
+    end_time,
+    calendar_name=None,
+    location=None,
+    description=None,
+):
+    """
+    Create an event in Apple Calendar.
+    """
+
+    return calendar_service.create_event(
+        title=title,
+        start_time=start_time,
+        end_time=end_time,
+        calendar_name=calendar_name,
+        location=location,
+        description=description,
+    )
+
+def get_calendar_events(
+    start_time,
+    end_time,
+    calendar_name=None,
+):
+    """
+    Retrieve Apple Calendar events within a time range.
+    """
+
+    return calendar_service.get_events(
+        start_time=start_time,
+        end_time=end_time,
+        calendar_name=calendar_name,
+    )
+
+def schedule_task(
+    task_title,
+    start_time,
+    end_time,
+    calendar_name=None,
+    location=None,
+    description=None,
+):
+    action_description = (
+        "Create calendar event:\n\n"
+        f"  Title: {task_title}\n"
+        f"  Start: {start_time}\n"
+        f"  End: {end_time}"
+    )
+
+    if calendar_name:
+        action_description += (
+            f"\n  Calendar: {calendar_name}"
+        )
+
+    approved = request_confirmation(
+        action_description
+    )
+
+    if not approved:
+        return {
+            "success": False,
+            "message": "Calendar event creation cancelled.",
+        }
+
+    return scheduling_service.schedule_task(
+        task_title=task_title,
+        start_time=start_time,
+        end_time=end_time,
+        calendar_name=calendar_name,
+        location=location,
+        description=description,
+    )
+
+def find_free_time(
+    start_time,
+    end_time,
+    duration_minutes,
+    calendar_name=None,
+    earliest_hour=7,
+    latest_hour=23,
+):
+    """
+    Find available time blocks in Apple Calendar.
+    """
+
+    return scheduling_service.find_free_time(
+        start_time=start_time,
+        end_time=end_time,
+        duration_minutes=duration_minutes,
+        calendar_name=calendar_name,
+        earliest_hour=earliest_hour,
+        latest_hour=latest_hour,
+    )
+
+def recommend_task_time(
+    task_title,
+    start_time,
+    end_time,
+    duration_minutes=120,
+    calendar_name=None,
+    earliest_hour=7,
+    latest_hour=23,
+):
+    return scheduling_service.recommend_for_task(
+        task_title=task_title,
+        start_time=start_time,
+        end_time=end_time,
+        duration_minutes=duration_minutes,
+        calendar_name=calendar_name,
+        earliest_hour=earliest_hour,
+        latest_hour=latest_hour,
+    )
