@@ -1,5 +1,6 @@
 import subprocess
 from datetime import datetime, timedelta
+import re
 
 from dateutil.rrule import rrulestr
 
@@ -223,6 +224,9 @@ class AppleScriptCalendarProvider(CalendarProvider):
                 )
 
                 recurrence = parts[4].strip()
+                recurrence = self._normalize_recurrence(
+                    recurrence
+                )
 
                 duration = event_end - event_start
 
@@ -683,6 +687,8 @@ class AppleScriptCalendarProvider(CalendarProvider):
 
                 set location of newEvent to "{location}"
                 set description of newEvent to "{description}"
+
+                return uid of newEvent
             end tell
         end tell
         '''
@@ -813,4 +819,28 @@ class AppleScriptCalendarProvider(CalendarProvider):
                 })
 
         return matches
+
+    def _normalize_recurrence(self, recurrence):
+        """
+        Normalize an Apple Calendar RRULE so dateutil can
+        evaluate it against naive local datetimes.
+        """
+
+        if not recurrence:
+            return recurrence
+
+        # Apple Calendar commonly returns UTC UNTIL values:
+        #
+        #   UNTIL=20261214T155959Z
+        #
+        # Because our DTSTART/query datetimes are naive local
+        # times, remove the trailing Z so dateutil treats UNTIL
+        # as a naive datetime as well.
+        recurrence = re.sub(
+            r"UNTIL=(\d{8}T\d{6})Z",
+            r"UNTIL=\1",
+            recurrence,
+        )
+
+        return recurrence
         

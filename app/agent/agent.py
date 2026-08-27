@@ -18,6 +18,7 @@ from services.usage_tracker import (
 )
 from services.approval import request_confirmation
 from services.scheduling.service import SchedulingService
+from tools.tasks import get_tasks
 
 
 # --------------------------------------------------
@@ -429,6 +430,35 @@ def ask_agent(user_message: str) -> str:
                         "Reschedule calendar event:\n\n"
                         f"  Event ID: {event_id}\n"
                         f"  New: {new_start} – {new_end}"
+                    )
+
+            elif function_name == "reschedule_task":
+
+                task_id = arguments.get("task_id")
+                new_start = arguments.get("new_start")
+                new_end = arguments.get("new_end")
+
+                task = next(
+                    (
+                        task
+                        for task in get_tasks()
+                        if task["id"] == task_id
+                    ),
+                    None,
+                )
+
+                if task:
+                    description = (
+                        "Reschedule task:\n\n"
+                        f"  Task: {task['title']}\n"
+                        f"  Current event: "
+                        f"{task.get('calendar_event_id')}\n"
+                        f"  New time: {new_start} – {new_end}"
+                    )
+                else:
+                    description = (
+                        f"Reschedule task {task_id} "
+                        f"to {new_start} – {new_end}"
                     )      
 
             else:

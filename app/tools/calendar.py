@@ -51,12 +51,13 @@ def get_calendar_events(
     )
 
 def schedule_task(
-    task_title,
-    start_time,
-    end_time,
+    task_title=None,
+    start_time=None,
+    end_time=None,
     calendar_name=None,
     location=None,
     description=None,
+    task_id=None,
 ):
     action_description = (
         "Create calendar event:\n\n"
@@ -87,6 +88,7 @@ def schedule_task(
         calendar_name=calendar_name,
         location=location,
         description=description,
+        task_id=task_id,
     )
 
 def find_free_time(
@@ -207,4 +209,19 @@ def find_calendar_event(
     return calendar_service.find_event(
         title=title,
         calendar_name=calendar_name,
+    )
+
+def reschedule_task(
+    task_id,
+    new_start,
+    new_end,
+):
+    """
+    Reschedule the calendar event linked to a PersonalOps task.
+    """
+
+    return scheduling_service.reschedule_task(
+        task_id=task_id,
+        new_start=new_start,
+        new_end=new_end,
     )

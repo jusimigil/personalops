@@ -9,7 +9,7 @@ from services.scheduling.recommendation import (
 )
 
 from services.scheduling.urgency import UrgencyService
-from tools.tasks import get_tasks
+from tools.tasks import get_tasks, set_task_calendar_event
 
 from services.scheduling.planner import PlanningService
 from services.scheduling.rescheduling import ReschedulingService
@@ -125,26 +125,109 @@ class SchedulingService:
 
     def schedule_task(
         self,
-        task_title,
-        start_time,
-        end_time,
+        task_title=None,
+        start_time=None,
+        end_time=None,
         calendar_name=None,
         location=None,
         description=None,
+        task_id=None,
     ):
         """
-        Create a calendar event for a previously recommended
-        task time.
+        Create a calendar event for a PersonalOps task.
+
+        Prefer task_id when available. task_title is retained
+        as a backwards-compatible fallback.
         """
 
-        return self.calendar.create_event(
-            title=task_title,
+        tasks = get_tasks()
+
+        # ------------------------------------------
+        # Identify the task
+        # ------------------------------------------
+
+        task = None
+
+        if task_id is not None:
+            task = next(
+                (
+                    existing
+                    for existing in tasks
+                    if existing["id"] == task_id
+                ),
+                None,
+            )
+
+            if task is None:
+                raise ValueError(
+                    f"Task {task_id} not found."
+                )
+
+        elif task_title:
+            matches = [
+                existing
+                for existing in tasks
+                if existing.get("title", "").strip().lower()
+                == task_title.strip().lower()
+            ]
+
+            if not matches:
+                raise ValueError(
+                    f"No task found with title "
+                    f"'{task_title}'."
+                )
+
+            if len(matches) > 1:
+                raise ValueError(
+                    f"Multiple tasks found with title "
+                    f"'{task_title}'. Use task_id instead."
+                )
+
+            task = matches[0]
+
+        else:
+            raise ValueError(
+                "task_id or task_title is required."
+            )
+
+        # ------------------------------------------
+        # Prevent duplicate scheduling
+        # ------------------------------------------
+
+        if task.get("calendar_event_id"):
+            raise ValueError(
+                f"Task {task['id']} is already linked "
+                "to a calendar event."
+            )
+
+        # ------------------------------------------
+        # Create calendar event
+        # ------------------------------------------
+
+        event_id = self.calendar.create_event(
+            title=task["title"],
             start_time=start_time,
             end_time=end_time,
             calendar_name=calendar_name,
             location=location,
             description=description,
-    )
+        )
+
+        # ------------------------------------------
+        # Link task → calendar event
+        # ------------------------------------------
+
+        updated_task = set_task_calendar_event(
+            task_id=task["id"],
+            event_id=event_id,
+        )
+
+        return {
+            "task": updated_task,
+            "event_id": event_id,
+            "start": start_time,
+            "end": end_time,
+        }
 
     def recommend_for_task(
         self,
@@ -363,27 +446,115 @@ class SchedulingService:
         calendar_name=None,
     ):
         """
-        Create all events in an approved plan.
+        Validate and create all events in an approved plan.
+
+        No calendar events are created if the plan contains
+        an invalid or already-linked task.
         """
+
+        tasks = get_tasks()
+
+        validated_items = []
+
+        # ------------------------------------------
+        # Validate entire plan first
+        # ------------------------------------------
+
+        for item in plan:
+
+            task = item.get("task")
+
+            if not task:
+                raise ValueError(
+                    "Plan item is missing its task."
+                )
+
+            task_id = task.get("id")
+
+            if task_id is None:
+                raise ValueError(
+                    "Plan item is missing task ID."
+                )
+
+            current_task = next(
+                (
+                    existing
+                    for existing in tasks
+                    if existing["id"] == task_id
+                ),
+                None,
+            )
+
+            if current_task is None:
+                raise ValueError(
+                    f"Task {task_id} no longer exists."
+                )
+
+            if current_task.get("calendar_event_id"):
+                raise ValueError(
+                    f"Task {task_id} is already linked "
+                    "to a calendar event."
+                )
+
+            start_time = item.get("start")
+            end_time = item.get("end")
+
+            if not start_time or not end_time:
+                raise ValueError(
+                    f"Task {task_id} is missing a start "
+                    "or end time."
+                )
+
+            # Validate the time range.
+            start = datetime.fromisoformat(
+                start_time
+            )
+
+            end = datetime.fromisoformat(
+                end_time
+            )
+
+            if end <= start:
+                raise ValueError(
+                    f"Invalid time range for task {task_id}."
+                )
+
+            validated_items.append({
+                "task": current_task,
+                "start": start_time,
+                "end": end_time,
+            })
+
+        # ------------------------------------------
+        # Create events
+        # ------------------------------------------
 
         results = []
 
-        for item in plan:
-            result = self.calendar.create_event(
-                title=item["task"]["title"],
+        for item in validated_items:
+
+            task = item["task"]
+
+            event_id = self.calendar.create_event(
+                title=task["title"],
                 start_time=item["start"],
                 end_time=item["end"],
                 calendar_name=calendar_name,
             )
 
+            updated_task = set_task_calendar_event(
+                task_id=task["id"],
+                event_id=event_id,
+            )
+
             results.append({
-                "task": item["task"]["title"],
+                "task": updated_task,
+                "event_id": event_id,
                 "start": item["start"],
                 "end": item["end"],
-                "result": result,
             })
 
-        return results   
+        return results 
 
     def recommend_reschedule(
         self,
@@ -450,6 +621,55 @@ class SchedulingService:
             "title": event["title"],
             "old_start": event["start"],
             "old_end": event["end"],
+            "new_start": new_start,
+            "new_end": new_end,
+            "result": result,
+        }
+
+    def reschedule_task(
+        self,
+        task_id,
+        new_start,
+        new_end,
+    ):
+        """
+        Reschedule the calendar event linked to a PersonalOps task.
+        """
+
+        tasks = get_tasks()
+
+        task = next(
+            (
+                existing
+                for existing in tasks
+                if existing["id"] == task_id
+            ),
+            None,
+        )
+
+        if task is None:
+            raise ValueError(
+                f"Task {task_id} not found."
+            )
+
+        event_id = task.get("calendar_event_id")
+
+        if not event_id:
+            raise ValueError(
+                f"Task {task_id} is not linked "
+                "to a calendar event."
+            )
+
+        result = self.calendar.update_event(
+            event_id=event_id,
+            start_time=new_start,
+            end_time=new_end,
+        )
+
+        return {
+            "task_id": task["id"],
+            "task_title": task["title"],
+            "event_id": event_id,
             "new_start": new_start,
             "new_end": new_end,
             "result": result,

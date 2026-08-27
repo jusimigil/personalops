@@ -24,6 +24,7 @@ from tools.calendar import (
     recommend_reschedule,
     reschedule_event,
     find_calendar_event,
+    reschedule_task,
 )
 
 
@@ -53,6 +54,7 @@ TOOL_FUNCTIONS = {
     "recommend_reschedule": recommend_reschedule,
     "reschedule_event": reschedule_event,
     "find_calendar_event": find_calendar_event,
+    "reschedule_task": reschedule_task,
 }
 
 
@@ -478,9 +480,9 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "name": "schedule_task",
         "description": (
-            "Create a calendar event for a task at a specific "
-            "recommended time. Use this only when the user has "
-            "explicitly approved scheduling the task."
+            "Create a calendar event for a PersonalOps task. "
+            "Prefer task_id when the task has already been identified. "
+            "Use task_title only when a task ID is unavailable."
         ),
         "parameters": {
             "type": "object",
@@ -515,9 +517,15 @@ TOOL_DEFINITIONS = [
                     "type": "string",
                     "description": "Optional event description.",
                 },
+                "task_id": {
+                    "type": "integer",
+                    "description": (
+                        "ID of the PersonalOps task to schedule. "
+                        "Prefer this over task_title when available."
+                    ),
+                },
             },
             "required": [
-                "task_title",
                 "start_time",
                 "end_time",
             ],
@@ -830,6 +838,46 @@ TOOL_DEFINITIONS = [
             "required": ["title"],
         },
     },
+
+    {
+        "type": "function",
+        "name": "reschedule_task",
+        "description": (
+            "Move the calendar event linked to a PersonalOps task "
+            "to a new time. Use this for task-related rescheduling "
+            "when the task has a calendar event linked to it."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "integer",
+                    "description": (
+                        "ID of the PersonalOps task."
+                    ),
+                },
+                "new_start": {
+                    "type": "string",
+                    "description": (
+                        "New start time in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+                "new_end": {
+                    "type": "string",
+                    "description": (
+                        "New end time in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+            },
+            "required": [
+                "task_id",
+                "new_start",
+                "new_end",
+            ],
+        },
+    },
 ]
 
 
@@ -845,6 +893,7 @@ TOOLS_REQUIRING_APPROVAL = {
     "create_calendar_event",
     "schedule_plan",
     "reschedule_event",
+    "reschedule_task",
 }
 
 

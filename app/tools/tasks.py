@@ -72,6 +72,7 @@ def create_task(
         "priority": priority,
         "status": "incomplete",
         "estimated_minutes": estimated_minutes,
+        "calendar_event_id": None,
     }
 
     tasks.append(new_task)
@@ -114,6 +115,23 @@ def update_task(
         if estimated_minutes is not None:
             task["estimated_minutes"] = estimated_minutes
 
+        save_tasks(tasks)
+        return task
+
+    return None
+
+def set_task_calendar_event(task_id, event_id):
+    """
+    Associate a task with a calendar event UID.
+    """
+
+    tasks = load_tasks()
+
+    for task in tasks:
+        if task["id"] != task_id:
+            continue
+
+        task["calendar_event_id"] = event_id
         save_tasks(tasks)
         return task
 
