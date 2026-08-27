@@ -52,3 +52,10 @@ class CalendarProvider(ABC):
         calendar_name=None,
     ):
         raise NotImplementedError
+
+    def delete_event(
+        self,
+        event_id,
+        calendar_name=None,
+    ):
+        raise NotImplementedError

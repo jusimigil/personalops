@@ -102,3 +102,13 @@ class CalendarService:
             title=title,
             calendar_name=calendar_name,
         )
+
+    def delete_event(
+        self,
+        event_id,
+        calendar_name=None,
+    ):
+        return self.provider.delete_event(
+            event_id=event_id,
+            calendar_name=calendar_name,
+        )

@@ -1,5 +1,4 @@
 from datetime import datetime, time
-from tools.tasks import get_tasks
 from tools.memory import search_memories
 
 from services.calendar.service import CalendarService
@@ -9,7 +8,11 @@ from services.scheduling.recommendation import (
 )
 
 from services.scheduling.urgency import UrgencyService
-from tools.tasks import get_tasks, set_task_calendar_event
+from tools.tasks import (
+    get_tasks, 
+    set_task_calendar_event,
+    clear_task_calendar_event,
+)
 
 from services.scheduling.planner import PlanningService
 from services.scheduling.rescheduling import ReschedulingService
@@ -220,6 +223,7 @@ class SchedulingService:
         updated_task = set_task_calendar_event(
             task_id=task["id"],
             event_id=event_id,
+            calendar_name=calendar_name,
         )
 
         return {
@@ -543,8 +547,9 @@ class SchedulingService:
             )
 
             updated_task = set_task_calendar_event(
-                task_id=task["id"],
+                task_id=task_id,
                 event_id=event_id,
+                calendar_name=calendar_name,
             )
 
             results.append({
@@ -674,3 +679,56 @@ class SchedulingService:
             "new_end": new_end,
             "result": result,
         }
+
+    def remove_task_calendar_event(
+        self,
+        task_id,
+    ):
+        """
+        Delete the calendar event linked to a task.
+        """
+
+        tasks = get_tasks()
+
+        task = next(
+            (
+                existing
+                for existing in tasks
+                if existing["id"] == task_id
+            ),
+            None,
+        )
+
+        if task is None:
+            raise ValueError(
+                f"Task {task_id} not found."
+            )
+
+        event_id = task.get("calendar_event_id")
+        calendar_name = task.get("calendar_name")
+
+        if not event_id:
+            raise ValueError(
+                f"Task {task_id} has no linked "
+                "calendar event."
+            )
+
+        result = self.calendar.delete_event(
+            event_id=event_id,
+            calendar_name=calendar_name,
+        )
+
+        updated_task = clear_task_calendar_event(
+            task_id
+        )
+
+        return {
+            "task_id": task_id,
+            "task_title": task["title"],
+            "event_id": event_id,
+            "calendar_name": calendar_name,
+            "result": result,
+            "task": updated_task,
+        }
+
+    

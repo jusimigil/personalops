@@ -73,6 +73,7 @@ def create_task(
         "status": "incomplete",
         "estimated_minutes": estimated_minutes,
         "calendar_event_id": None,
+        "calendar_name": None,
     }
 
     tasks.append(new_task)
@@ -120,9 +121,13 @@ def update_task(
 
     return None
 
-def set_task_calendar_event(task_id, event_id):
+def set_task_calendar_event(
+    task_id,
+    event_id,
+    calendar_name=None,
+):
     """
-    Associate a task with a calendar event UID.
+    Associate a task with a calendar event.
     """
 
     tasks = load_tasks()
@@ -132,6 +137,27 @@ def set_task_calendar_event(task_id, event_id):
             continue
 
         task["calendar_event_id"] = event_id
+        task["calendar_name"] = calendar_name
+
+        save_tasks(tasks)
+        return task
+
+    return None
+
+def clear_task_calendar_event(task_id):
+    """
+    Remove the calendar event association from a task.
+    """
+
+    tasks = load_tasks()
+
+    for task in tasks:
+        if task["id"] != task_id:
+            continue
+
+        task["calendar_event_id"] = None
+        task["calendar_name"] = None
+
         save_tasks(tasks)
         return task
 
@@ -146,3 +172,4 @@ def complete_task(task_id):
         task_id=task_id,
         status="complete",
     )
+

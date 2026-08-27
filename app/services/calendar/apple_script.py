@@ -443,6 +443,53 @@ class AppleScriptCalendarProvider(CalendarProvider):
             "recurring": False,
         }
 
+    def delete_event(
+        self,
+        event_id,
+        calendar_name=None,
+    ):
+        """Delete an existing Apple Calendar event by UID."""
+
+        if not event_id:
+            raise ValueError(
+                "event_id is required."
+            )
+
+        if calendar_name is None:
+            calendars = self.get_calendars()
+
+            if not calendars:
+                raise RuntimeError(
+                    "No Apple Calendar calendars found."
+                )
+
+            calendar_name = calendars[0]
+
+        escaped_event_id = self._escape_text(event_id)
+        escaped_calendar = self._escape_text(
+            calendar_name
+        )
+
+        script = f'''
+        tell application "Calendar"
+            tell calendar "{escaped_calendar}"
+                set matchingEvents to every event whose uid is "{escaped_event_id}"
+
+                if (count of matchingEvents) is 0 then
+                    return ""
+                end if
+
+                repeat with currentEvent in matchingEvents
+                    delete currentEvent
+                end repeat
+
+                return "{escaped_event_id}"
+            end tell
+        end tell
+        '''
+
+        return self._run_script(script)
+
     def update_event(
         self,
         event_id,
