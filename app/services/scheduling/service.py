@@ -11,6 +11,8 @@ from services.scheduling.recommendation import (
 from services.scheduling.urgency import UrgencyService
 from tools.tasks import get_tasks
 
+from services.scheduling.planner import PlanningService
+
 class SchedulingService:
 
     def __init__(self):
@@ -18,6 +20,7 @@ class SchedulingService:
         self.availability = AvailabilityService()
         self.recommendation = RecommendationService()
         self.urgency = UrgencyService()
+        self.planner = PlanningService()
 
     def find_free_time(
         self,
@@ -86,6 +89,7 @@ class SchedulingService:
         end_time,
         duration_minutes,
         preference=None,
+        task=None,
         calendar_name=None,
         earliest_hour=7,
         latest_hour=23,
@@ -107,10 +111,10 @@ class SchedulingService:
             return None
 
         return self.recommendation.recommend(
-            task=None,
+            task=task or {},
             free_blocks=free_blocks,
-            preference=preference,
             duration_minutes=duration_minutes,
+            preference=preference,
         )
 
     def schedule_task(
@@ -295,6 +299,7 @@ class SchedulingService:
             calendar_name=calendar_name,
             earliest_hour=earliest_hour,
             latest_hour=latest_hour,
+            task=task,
         )
 
         return {
@@ -302,3 +307,74 @@ class SchedulingService:
             "preference": preference,
             "recommendation": recommendation,
         }
+
+    def plan_tasks(
+        self,
+        start_time,
+        end_time,
+        calendar_name=None,
+        earliest_hour=7,
+        latest_hour=23,
+        break_minutes=30,
+    ):
+        """
+        Build a schedule for eligible tasks.
+        """
+
+        tasks = get_tasks()
+
+        free_blocks = self.find_free_time(
+            start_time=start_time,
+            end_time=end_time,
+            duration_minutes=1,
+            calendar_name=calendar_name,
+            earliest_hour=earliest_hour,
+            latest_hour=latest_hour,
+        )
+
+        if not free_blocks:
+            return []
+
+        memories = search_memories(
+            "study preferences"
+        )
+
+        preference = None
+
+        if memories:
+            preference = memories[0]["content"]
+
+        return self.planner.plan(
+            tasks=tasks,
+            free_blocks=free_blocks,
+            break_minutes=break_minutes,
+            preference=preference,
+        )
+
+    def schedule_plan(
+        self,
+        plan,
+        calendar_name=None,
+    ):
+        """
+        Create all events in an approved plan.
+        """
+
+        results = []
+
+        for item in plan:
+            result = self.calendar.create_event(
+                title=item["task"]["title"],
+                start_time=item["start"],
+                end_time=item["end"],
+                calendar_name=calendar_name,
+            )
+
+            results.append({
+                "task": item["task"]["title"],
+                "start": item["start"],
+                "end": item["end"],
+                "result": result,
+            })
+
+        return results    

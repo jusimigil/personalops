@@ -20,15 +20,16 @@ class UrgencyService:
 
     def calculate(self, task, reference_date=None):
         """
-        Calculate an urgency score for a task.
-
-        Higher score = more urgent.
+        Calculate an urgency score and its breakdown.
         """
 
         if reference_date is None:
             reference_date = date.today()
 
-        score = 0
+        priority_score = 0
+        status_score = 0
+        deadline_score = 0
+        workload_score = 0
 
         # ------------------------------------------
         # Priority
@@ -39,7 +40,7 @@ class UrgencyService:
             "medium",
         ).lower()
 
-        score += self.PRIORITY_WEIGHTS.get(
+        priority_score = self.PRIORITY_WEIGHTS.get(
             priority,
             30,
         )
@@ -53,7 +54,7 @@ class UrgencyService:
             "incomplete",
         ).lower()
 
-        score += self.STATUS_WEIGHTS.get(
+        status_score = self.STATUS_WEIGHTS.get(
             status,
             0,
         )
@@ -78,27 +79,22 @@ class UrgencyService:
             ).days
 
             if days_remaining < 0:
-                # Overdue
-                score += 50
+                deadline_score = 50
 
             elif days_remaining == 0:
-                # Due today
-                score += 40
+                deadline_score = 40
 
             elif days_remaining == 1:
-                # Due tomorrow
-                score += 30
+                deadline_score = 30
 
             elif days_remaining <= 3:
-                # Due within three days
-                score += 20
+                deadline_score = 20
 
             elif days_remaining <= 7:
-                # Due within a week
-                score += 10
+                deadline_score = 10
 
         # ------------------------------------------
-        # Estimated workload
+        # Workload
         # ------------------------------------------
 
         estimated_minutes = task.get(
@@ -108,21 +104,34 @@ class UrgencyService:
         if estimated_minutes:
 
             if estimated_minutes >= 240:
-                score += 20
+                workload_score = 20
 
             elif estimated_minutes >= 180:
-                score += 15
+                workload_score = 15
 
             elif estimated_minutes >= 120:
-                score += 10
+                workload_score = 10
 
             elif estimated_minutes >= 60:
-                score += 5
+                workload_score = 5
+
+        total_score = (
+            priority_score
+            + status_score
+            + deadline_score
+            + workload_score
+        )
 
         return {
             "task_id": task.get("id"),
             "title": task.get("title"),
-            "score": score,
+            "score": total_score,
+            "breakdown": {
+                "priority": priority_score,
+                "status": status_score,
+                "deadline": deadline_score,
+                "workload": workload_score,
+            },
         }
 
     def rank_tasks(self, tasks, reference_date=None):
@@ -133,6 +142,7 @@ class UrgencyService:
         ranked = []
 
         for task in tasks:
+
             urgency = self.calculate(
                 task,
                 reference_date=reference_date,
@@ -141,6 +151,7 @@ class UrgencyService:
             ranked.append({
                 **task,
                 "urgency_score": urgency["score"],
+                "urgency_breakdown": urgency["breakdown"],
             })
 
         ranked.sort(

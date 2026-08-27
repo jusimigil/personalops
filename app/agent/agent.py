@@ -41,6 +41,7 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 
+conversation_id = None
 
 # --------------------------------------------------
 # Tool definition
@@ -239,14 +240,28 @@ def ask_agent(user_message: str) -> str:
             "Please check PersonalOps usage before continuing."
         )
 
-    interaction = client.interactions.create(
-        model="gemini-3.7-flash",
-        input=(
-            f"Today's date is {date.today().isoformat()}.\n\n"
-            f"User request: {user_message}"
-        ),
-        tools=get_gemini_tools()
-    )
+    global conversation_id
+
+    if conversation_id is None:
+        interaction = client.interactions.create(
+            model="gemini-3.7-flash",
+            input=(
+                f"Today's date is {date.today().isoformat()}.\n\n"
+                f"User request: {user_message}"
+            ),
+            tools=get_gemini_tools(),
+        )
+    else:
+        interaction = client.interactions.create(
+            model="gemini-3.7-flash",
+            previous_interaction_id=conversation_id,
+            input=(
+                f"User request: {user_message}"
+            ),
+            tools=get_gemini_tools(),
+        )
+
+    conversation_id = interaction.id
 
     # Track usage from this interaction
     if interaction.usage:
@@ -288,6 +303,7 @@ def ask_agent(user_message: str) -> str:
         )
 
         function = get_tool_function(function_name)
+        
 
         if function is None:
             raise ValueError(
@@ -361,6 +377,29 @@ def ask_agent(user_message: str) -> str:
                     f"  Category: {category}"
                 )
 
+            elif function_name == "schedule_plan":
+
+                plan = arguments.get("plan", [])
+
+                lines = [
+                    "Schedule the following plan:"
+                ]
+
+                for item in plan:
+                    task = item.get("task", {})
+                    title = task.get(
+                        "title",
+                        "Untitled task"
+                    )
+
+                    lines.append(
+                        f"  {title}: "
+                        f"{item.get('start')} – "
+                        f"{item.get('end')}"
+                    )
+
+                description = "\n".join(lines)      
+
             else:
                 description = (
                 f"Execute tool: {function_name}"
@@ -406,6 +445,8 @@ def ask_agent(user_message: str) -> str:
             ],
             tools=get_gemini_tools()
         )
+
+        conversation_id = interaction.id  
 
         # Track usage from subsequent interaction
         if interaction.usage:

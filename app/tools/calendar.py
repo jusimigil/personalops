@@ -128,3 +128,37 @@ def recommend_task_time(
         earliest_hour=earliest_hour,
         latest_hour=latest_hour,
     )
+
+def plan_tasks(
+    start_time,
+    end_time,
+    calendar_name=None,
+    earliest_hour=7,
+    latest_hour=23,
+    break_minutes=30,
+):
+    """
+    Build a proposed schedule for multiple tasks.
+    """
+
+    return scheduling_service.plan_tasks(
+        start_time=start_time,
+        end_time=end_time,
+        calendar_name=calendar_name,
+        earliest_hour=earliest_hour,
+        latest_hour=latest_hour,
+        break_minutes=break_minutes,
+    )
+
+def schedule_plan(
+    plan,
+    calendar_name=None,
+):
+    """
+    Schedule an entire approved plan.
+    """
+
+    return scheduling_service.schedule_plan(
+        plan=plan,
+        calendar_name=calendar_name,
+    )

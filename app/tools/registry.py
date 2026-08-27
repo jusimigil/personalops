@@ -19,6 +19,8 @@ from tools.calendar import (
     find_free_time,
     recommend_task_time,
     schedule_task,
+    plan_tasks,
+    schedule_plan,
 )
 
 
@@ -43,6 +45,8 @@ TOOL_FUNCTIONS = {
     "recommend_task_time": recommend_task_time,
     "schedule_task": schedule_task,
     "update_task": update_task,
+    "plan_tasks": plan_tasks,
+    "schedule_plan": schedule_plan,
 }
 
 
@@ -555,6 +559,131 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["task_id"],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "plan_tasks",
+        "description": (
+            "Build a proposed schedule for the user's eligible "
+            "tasks within a specified time range. The planner "
+            "uses task urgency, estimated duration, calendar "
+            "availability, user preferences, and breaks. "
+            "Use this when the user asks to plan their day, "
+            "evening, or a period of time."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "start_time": {
+                    "type": "string",
+                    "description": (
+                        "Beginning of the planning range in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+                "end_time": {
+                    "type": "string",
+                    "description": (
+                        "End of the planning range in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+                "calendar_name": {
+                    "type": "string",
+                    "description": (
+                        "Optional Apple Calendar name. "
+                        "If omitted, use all calendars."
+                    ),
+                },
+                "earliest_hour": {
+                    "type": "integer",
+                    "description": (
+                        "Earliest hour to consider, from 0 to 23. "
+                        "Defaults to 7."
+                    ),
+                },
+                "latest_hour": {
+                    "type": "integer",
+                    "description": (
+                        "Latest hour to consider, from 0 to 23. "
+                        "Defaults to 23."
+                    ),
+                },
+                "break_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "Break between scheduled tasks, "
+                        "in minutes. Defaults to 30."
+                    ),
+                },
+            },
+            "required": [
+                "start_time",
+                "end_time",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "schedule_plan",
+        "description": (
+            "Schedule an entire proposed task plan in Apple "
+            "Calendar. Use this only when the user explicitly "
+            "approves the proposed plan."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "plan": {
+                    "type": "array",
+                    "description": (
+                        "The exact proposed schedule to add."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "task": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["title"],
+                            },
+                            "start": {
+                                "type": "string",
+                                "description": (
+                                    "Start time in "
+                                    "YYYY-MM-DD HH:MM:SS format."
+                                ),
+                            },
+                            "end": {
+                                "type": "string",
+                                "description": (
+                                    "End time in "
+                                    "YYYY-MM-DD HH:MM:SS format."
+                                ),
+                            },
+                        },
+                        "required": [
+                            "task",
+                            "start",
+                            "end",
+                        ],
+                    },
+                },
+                "calendar_name": {
+                    "type": "string",
+                    "description": (
+                        "Optional Apple Calendar name."
+                    ),
+                },
+            },
+            "required": ["plan"],
         },
     },
 ]
