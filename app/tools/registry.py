@@ -2,6 +2,7 @@ from tools.tasks import (
     get_tasks,
     create_task,
     update_task,
+    complete_task,
 )
 
 from tools.memory import (
@@ -35,6 +36,7 @@ from tools.calendar import (
 TOOL_FUNCTIONS = {
     "get_tasks": get_tasks,
     "create_task": create_task,
+    "complete_task": complete_task,
 
     "remember_memory": remember_memory,
     "recall_memories": recall_memories,
@@ -878,6 +880,28 @@ TOOL_DEFINITIONS = [
             ],
         },
     },
+
+    {
+        "type": "function",
+        "name": "complete_task",
+        "description": (
+            "Mark a PersonalOps task as complete. "
+            "Use this when the user explicitly says they "
+            "finished or completed a task."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "integer",
+                    "description": "ID of the task to complete.",
+                },
+            },
+            "required": [
+                "task_id",
+            ],
+        },
+    },
 ]
 
 
@@ -894,6 +918,7 @@ TOOLS_REQUIRING_APPROVAL = {
     "schedule_plan",
     "reschedule_event",
     "reschedule_task",
+    "complete_task",
 }
 
 

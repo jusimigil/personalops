@@ -459,6 +459,30 @@ def ask_agent(user_message: str) -> str:
                     description = (
                         f"Reschedule task {task_id} "
                         f"to {new_start} – {new_end}"
+                    )
+
+            elif function_name == "complete_task":
+
+                task_id = arguments.get("task_id")
+
+                task = next(
+                    (
+                        task
+                        for task in get_tasks()
+                        if task["id"] == task_id
+                    ),
+                    None,
+                )
+
+                if task:
+                    description = (
+                        "Complete task:\n\n"
+                        f"  Task: {task['title']}\n"
+                        f"  Task ID: {task_id}"
+                    )
+                else:
+                    description = (
+                        f"Complete task {task_id}"
                     )      
 
             else:

@@ -136,3 +136,13 @@ def set_task_calendar_event(task_id, event_id):
         return task
 
     return None
+
+def complete_task(task_id):
+    """
+    Mark an existing task as complete.
+    """
+
+    return update_task(
+        task_id=task_id,
+        status="complete",
+    )
