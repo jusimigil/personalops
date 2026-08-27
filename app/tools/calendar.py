@@ -225,3 +225,24 @@ def reschedule_task(
         new_start=new_start,
         new_end=new_end,
     )
+
+def plan_day(
+    date,
+    earliest_hour=7,
+    latest_hour=23,
+    break_minutes=30,
+    calendar_name=None,
+    max_work_minutes=360,
+):
+    """
+    Build a task-aware plan for a single day.
+    """
+
+    return scheduling_service.plan_day(
+        date=date,
+        earliest_hour=earliest_hour,
+        latest_hour=latest_hour,
+        break_minutes=break_minutes,
+        calendar_name=calendar_name,
+        max_work_minutes=max_work_minutes,
+    )

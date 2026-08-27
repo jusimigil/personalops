@@ -19,6 +19,7 @@ class PlanningService:
         free_blocks,
         break_minutes=30,
         preference=None,
+        max_work_minutes=None,
     ):
         """
         Build a non-overlapping multi-task schedule.
@@ -42,11 +43,19 @@ class PlanningService:
         )
 
         schedule = []
+        total_scheduled_minutes = 0
 
         # Keep track of already-occupied intervals.
         occupied = []
 
         for task in ranked_tasks:
+
+            if (
+                max_work_minutes is not None
+                and total_scheduled_minutes
+                >= max_work_minutes
+            ):
+                break
 
             duration = timedelta(
                 minutes=task["estimated_minutes"]
@@ -114,6 +123,37 @@ class PlanningService:
 
                     score = scoring["score"]
 
+                    # ----------------------------------
+                    # Whole-day placement adjustment
+                    # ----------------------------------
+
+                    start_hour = candidate_start.hour
+
+                    if preference:
+                        preference_lower = preference.lower()
+
+                        if (
+                            "difficult" in preference_lower
+                            and "night" in preference_lower
+                        ):
+                            # Reserve evening availability primarily for
+                            # more urgent work.
+                            if start_hour >= 18 and task["urgency_score"] >= 80:
+                                score += 15
+
+                            # Penalize placing lower-urgency work into
+                            # preferred evening hours when it can reasonably
+                            # be done elsewhere.
+                            elif start_hour >= 18 and task["urgency_score"] < 80:
+                                score -= 10
+
+                        elif (
+                            "morning" in preference_lower
+                            and start_hour < 12
+                        ):
+                            if task["urgency_score"] >= 80:
+                                score += 15
+
                     # Slightly favor earlier placement for
                     # very urgent tasks.
                     if task["urgency_score"] >= 100:
@@ -147,6 +187,20 @@ class PlanningService:
             task_start = best_candidate["start"]
             task_end = best_candidate["end"]
 
+            task_minutes = task[
+                "estimated_minutes"
+            ]
+
+            if (
+                max_work_minutes is not None
+                and (
+                    total_scheduled_minutes
+                    + task_minutes
+                    > max_work_minutes
+                )
+            ):
+                continue
+
             schedule.append({
                 "task": task,
                 "start": task_start.strftime(
@@ -166,6 +220,8 @@ class PlanningService:
                     preference=preference,
                 ),
             })
+
+            total_scheduled_minutes += task_minutes
 
             # Reserve the task itself.
             occupied.append(

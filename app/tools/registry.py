@@ -26,6 +26,7 @@ from tools.calendar import (
     reschedule_event,
     find_calendar_event,
     reschedule_task,
+    plan_day,
 )
 
 
@@ -57,6 +58,7 @@ TOOL_FUNCTIONS = {
     "reschedule_event": reschedule_event,
     "find_calendar_event": find_calendar_event,
     "reschedule_task": reschedule_task,
+    "plan_day": plan_day,
 }
 
 
@@ -899,6 +901,64 @@ TOOL_DEFINITIONS = [
             },
             "required": [
                 "task_id",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "plan_day",
+        "description": (
+            "Build a realistic plan for a specific day using tasks, "
+            "deadlines, estimated durations, calendar availability, "
+            "existing calendar events, scheduling preferences, "
+            "breaks, and a daily workload limit. Use this for broad "
+            "day-planning requests."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "description": (
+                        "Date to plan in YYYY-MM-DD format."
+                    ),
+                },
+                "earliest_hour": {
+                    "type": "integer",
+                    "description": (
+                        "Earliest hour at which planned work may begin."
+                    ),
+                },
+                "latest_hour": {
+                    "type": "integer",
+                    "description": (
+                        "Latest hour at which planned work may end."
+                    ),
+                },
+                "break_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "Preferred break duration between scheduled tasks."
+                    ),
+                },
+                "calendar_name": {
+                    "type": "string",
+                    "description": (
+                        "Optional calendar to use for availability."
+                    ),
+                },
+                "max_work_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "Maximum amount of task work to schedule that day, "
+                        "in minutes. Use this when the user specifies or "
+                        "implies a daily workload limit."
+                    ),
+                },
+            },
+            "required": [
+                "date",
             ],
         },
     },

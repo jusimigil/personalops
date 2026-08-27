@@ -409,6 +409,7 @@ class SchedulingService:
         earliest_hour=7,
         latest_hour=23,
         break_minutes=30,
+        max_work_minutes=None,
     ):
         """
         Build a schedule for eligible tasks.
@@ -442,7 +443,215 @@ class SchedulingService:
             free_blocks=free_blocks,
             break_minutes=break_minutes,
             preference=preference,
+            max_work_minutes=max_work_minutes,
         )
+
+    def plan_day(
+        self,
+        date,
+        earliest_hour=7,
+        latest_hour=23,
+        break_minutes=30,
+        calendar_name=None,
+        max_work_minutes=360,
+    ):
+        """
+        Build a task-aware plan for a single day.
+        """
+
+        day_start = datetime.fromisoformat(
+            f"{date} 00:00:00"
+        )
+
+        day_end = datetime.fromisoformat(
+            f"{date} 23:59:59"
+        )
+
+        # ------------------------------------------
+        # Build the schedule using existing planner
+        # ------------------------------------------
+
+        schedule = self.plan_tasks(
+            start_time=day_start.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            end_time=day_end.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            calendar_name=calendar_name,
+            earliest_hour=earliest_hour,
+            latest_hour=latest_hour,
+            break_minutes=break_minutes,
+            max_work_minutes=max_work_minutes,
+        )
+
+        # ------------------------------------------
+        # Load eligible tasks
+        # ------------------------------------------
+
+        tasks = get_tasks()
+
+        eligible_tasks = [
+            task
+            for task in tasks
+            if task.get("status") in {
+                "incomplete",
+                "in progress",
+            }
+            and task.get("estimated_minutes")
+            and not task.get("calendar_event_id")
+        ]
+
+        # ------------------------------------------
+        # Determine which tasks were scheduled
+        # ------------------------------------------
+
+        scheduled_task_ids = {
+            item["task"]["id"]
+            for item in schedule
+        }
+
+        unscheduled_tasks = [
+            task
+            for task in eligible_tasks
+            if task["id"] not in scheduled_task_ids
+        ]
+
+        # ------------------------------------------
+        # Determine breaks
+        # ------------------------------------------
+
+        breaks = []
+
+        for previous, current in zip(
+            schedule,
+            schedule[1:],
+        ):
+            previous_end = datetime.fromisoformat(
+                previous["end"]
+            )
+
+            current_start = datetime.fromisoformat(
+                current["start"]
+            )
+
+            gap_minutes = int(
+                (
+                    current_start
+                    - previous_end
+                ).total_seconds()
+                / 60
+            )
+
+            if (
+                gap_minutes >= break_minutes
+                and gap_minutes <= 60
+            ):
+                breaks.append({
+                    "start": previous["end"],
+                    "end": current["start"],
+                    "duration_minutes": gap_minutes,
+                })
+
+        search_start = day_start.replace(
+            hour=earliest_hour,
+            minute=0,
+            second=0,
+        )
+
+        search_end = day_end.replace(
+            hour=latest_hour,
+            minute=0,
+            second=0,
+        )
+
+        events = self.calendar.get_events(
+            start_time=search_start.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            end_time=search_end.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            calendar_name=calendar_name,
+        )
+
+        free_time = []
+
+        previous_end = search_start
+
+        for index, item in enumerate(schedule):
+            current_start = datetime.fromisoformat(
+                item["start"]
+            )
+
+            if current_start > previous_end:
+                gap_minutes = int(
+                    (
+                        current_start - previous_end
+                    ).total_seconds()
+                    / 60
+                )
+
+                # Check whether this gap is a planned break.
+                is_planned_break = any(
+                    break_item["start"]
+                    == previous_end.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    and break_item["end"]
+                    == current_start.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    for break_item in breaks
+                )
+
+                if not is_planned_break:
+                    free_time.append({
+                        "start": previous_end.strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        ),
+                        "end": current_start.strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        ),
+                        "duration_minutes": gap_minutes,
+                    })
+
+            previous_end = max(
+                previous_end,
+                datetime.fromisoformat(item["end"]),
+            )
+
+        if previous_end < search_end:
+            gap_minutes = int(
+                (
+                    search_end - previous_end
+                ).total_seconds()
+                / 60
+            )
+
+            free_time.append({
+                "start": previous_end.strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                "end": search_end.strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                "duration_minutes": gap_minutes,
+            })
+
+        return {
+            "date": date,
+            "schedule": schedule,
+            "unscheduled_tasks": unscheduled_tasks,
+            "breaks": breaks,
+            "free_time": free_time,
+            "calendar_events": events,
+            "max_work_minutes": max_work_minutes,
+            "scheduled_work_minutes": sum(
+                item["duration_minutes"]
+                for item in schedule
+            ),
+        }
 
     def schedule_plan(
         self,
