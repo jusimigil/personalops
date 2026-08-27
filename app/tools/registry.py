@@ -21,6 +21,9 @@ from tools.calendar import (
     schedule_task,
     plan_tasks,
     schedule_plan,
+    recommend_reschedule,
+    reschedule_event,
+    find_calendar_event,
 )
 
 
@@ -47,6 +50,9 @@ TOOL_FUNCTIONS = {
     "update_task": update_task,
     "plan_tasks": plan_tasks,
     "schedule_plan": schedule_plan,
+    "recommend_reschedule": recommend_reschedule,
+    "reschedule_event": reschedule_event,
+    "find_calendar_event": find_calendar_event,
 }
 
 
@@ -686,6 +692,144 @@ TOOL_DEFINITIONS = [
             "required": ["plan"],
         },
     },
+
+    {
+        "type": "function",
+        "name": "recommend_reschedule",
+        "description": (
+            "Find a better available time for an existing calendar "
+            "event. Use this when the user wants to move or "
+            "reschedule an event but has not yet specified the "
+            "exact replacement time."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "event_id": {
+                    "type": "string",
+                    "description": (
+                        "The Apple Calendar event UID."
+                    ),
+                },
+                "search_start": {
+                    "type": "string",
+                    "description": (
+                        "Beginning of the search range in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+                "search_end": {
+                    "type": "string",
+                    "description": (
+                        "End of the search range in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+                "calendar_name": {
+                    "type": "string",
+                    "description": (
+                        "Optional Apple Calendar name."
+                    ),
+                },
+                "preference": {
+                    "type": "string",
+                    "description": (
+                        "Optional scheduling preference to "
+                        "use when evaluating replacement times."
+                    ),
+                },
+            },
+            "required": [
+                "event_id",
+                "search_start",
+                "search_end",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "reschedule_event",
+        "description": (
+            "Move an existing non-recurring calendar event "
+            "to a new start and end time. Use only after the "
+            "user has explicitly approved the new time."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "event_id": {
+                    "type": "string",
+                    "description": (
+                        "The Apple Calendar event UID."
+                    ),
+                },
+                "new_start": {
+                    "type": "string",
+                    "description": (
+                        "New start time in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+                "new_end": {
+                    "type": "string",
+                    "description": (
+                        "New end time in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+                "calendar_name": {
+                    "type": "string",
+                    "description": (
+                        "Optional Apple Calendar name."
+                    ),
+                },
+            },
+            "required": [
+                "event_id",
+                "new_start",
+                "new_end",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "find_calendar_event",
+        "description": (
+            "Find calendar events by title. Search all calendars "
+            "when calendar_name is not specified. Use this when "
+            "the user refers to an existing event by its name."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "The event title to find.",
+                },
+                "start_time": {
+                    "type": "string",
+                    "description": (
+                        "Optional start of the search range in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+                "end_time": {
+                    "type": "string",
+                    "description": (
+                        "Optional end of the search range in "
+                        "YYYY-MM-DD HH:MM:SS format."
+                    ),
+                },
+                "calendar_name": {
+                    "type": "string",
+                    "description": "Optional calendar name.",
+                },
+            },
+            "required": ["title"],
+        },
+    },
 ]
 
 
@@ -699,6 +843,8 @@ TOOLS_REQUIRING_APPROVAL = {
     "forget_memory",
     "update_memory",
     "create_calendar_event",
+    "schedule_plan",
+    "reschedule_event",
 }
 
 

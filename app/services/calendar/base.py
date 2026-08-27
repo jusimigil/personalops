@@ -26,3 +26,29 @@ class CalendarProvider(ABC):
     ):
         """Create a calendar event."""
         pass
+
+    def update_event(
+        self,
+        event_id,
+        title=None,
+        start_time=None,
+        end_time=None,
+        calendar_name=None,
+        location=None,
+        description=None,
+    ):
+        raise NotImplementedError
+
+    def get_event_by_id(
+        self,
+        event_id,
+        calendar_name=None,
+    ):
+        raise NotImplementedError
+
+    def find_events_by_title(
+        self,
+        title,
+        calendar_name=None,
+    ):
+        raise NotImplementedError

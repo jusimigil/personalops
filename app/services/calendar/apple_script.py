@@ -139,6 +139,8 @@ class AppleScriptCalendarProvider(CalendarProvider):
                             set eventRecurrence to ""
                         end if
 
+                        set eventTitle to summary of currentEvent
+
                         set startYear to year of eventStart
                         set startMonth to month of eventStart as integer
                         set startDay to day of eventStart
@@ -153,8 +155,12 @@ class AppleScriptCalendarProvider(CalendarProvider):
                         set endMinute to minutes of eventEnd
                         set endSecond to seconds of eventEnd
 
+                        set eventUID to uid of currentEvent
+
+                        set outputText to outputText & eventUID
+                        set outputText to outputText & "\t"
                         set outputText to outputText & eventTitle
-                        set outputText to outputText & "\\t"
+                        set outputText to outputText & "\t"
 
                         set outputText to outputText & startYear
                         set outputText to outputText & "-"
@@ -168,7 +174,7 @@ class AppleScriptCalendarProvider(CalendarProvider):
                         set outputText to outputText & ":"
                         set outputText to outputText & startSecond
 
-                        set outputText to outputText & "\\t"
+                        set outputText to outputText & "\t"
 
                         set outputText to outputText & endYear
                         set outputText to outputText & "-"
@@ -182,9 +188,9 @@ class AppleScriptCalendarProvider(CalendarProvider):
                         set outputText to outputText & ":"
                         set outputText to outputText & endSecond
 
-                        set outputText to outputText & "\\t"
+                        set outputText to outputText & "\t"
                         set outputText to outputText & eventRecurrence
-                        set outputText to outputText & "\\n"
+                        set outputText to outputText & "\n"
 
                     end repeat
 
@@ -200,22 +206,23 @@ class AppleScriptCalendarProvider(CalendarProvider):
 
                 parts = line.split("\t")
 
-                if len(parts) != 4:
+                if len(parts) != 5:
                     continue
 
-                title = parts[0]
+                event_id = parts[0]
+                title = parts[1]
 
                 event_start = datetime.strptime(
-                    parts[1],
-                    "%Y-%m-%d %H:%M:%S"
-                )
-
-                event_end = datetime.strptime(
                     parts[2],
                     "%Y-%m-%d %H:%M:%S"
                 )
 
-                recurrence = parts[3].strip()
+                event_end = datetime.strptime(
+                    parts[3],
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
+                recurrence = parts[4].strip()
 
                 duration = event_end - event_start
 
@@ -229,6 +236,7 @@ class AppleScriptCalendarProvider(CalendarProvider):
 
                         events.append({
                             "calendar": current_calendar,
+                            "event_id": event_id,
                             "title": title,
                             "start": event_start.strftime(
                                 "%Y-%m-%d %H:%M:%S"
@@ -283,6 +291,7 @@ class AppleScriptCalendarProvider(CalendarProvider):
 
                             events.append({
                                 "calendar": current_calendar,
+                                "event_id": event_id,
                                 "title": title,
                                 "start": occurrence.strftime(
                                     "%Y-%m-%d %H:%M:%S"
@@ -301,6 +310,296 @@ class AppleScriptCalendarProvider(CalendarProvider):
                     )
 
         return events
+
+    def get_event_by_id(
+        self,
+        event_id,
+        calendar_name=None,
+    ):
+        """Return a single Apple Calendar event by UID."""
+
+        if not event_id:
+            raise ValueError("event_id is required.")
+
+        if calendar_name is None:
+            calendars = self.get_calendars()
+
+            if not calendars:
+                raise RuntimeError(
+                    "No Apple Calendar calendars found."
+                )
+
+            calendar_name = calendars[0]
+
+        escaped_event_id = self._escape_text(event_id)
+        escaped_calendar = self._escape_text(calendar_name)
+
+        script = f"""
+        tell application "Calendar"
+            tell calendar "{escaped_calendar}"
+                set matchingEvents to every event whose uid is "{escaped_event_id}"
+
+                if (count of matchingEvents) is 0 then
+                    return ""
+                end if
+
+                set targetEvent to item 1 of matchingEvents
+
+                set eventTitle to summary of targetEvent
+                set eventStart to start date of targetEvent
+                set eventEnd to end date of targetEvent
+                set eventRecurrence to recurrence of targetEvent
+
+                if eventRecurrence is missing value then
+                    set eventRecurrence to ""
+                end if
+
+                set eventYear to year of eventStart
+                set eventMonth to month of eventStart as integer
+                set eventDay to day of eventStart
+                set eventHour to hours of eventStart
+                set eventMinute to minutes of eventStart
+                set eventSecond to seconds of eventStart
+
+                set endYear to year of eventEnd
+                set endMonth to month of eventEnd as integer
+                set endDay to day of eventEnd
+                set endHour to hours of eventEnd
+                set endMinute to minutes of eventEnd
+                set endSecond to seconds of eventEnd
+
+                set outputText to eventTitle
+                set outputText to outputText & "\t"
+                set outputText to outputText & eventYear
+                set outputText to outputText & "-"
+                set outputText to outputText & eventMonth
+                set outputText to outputText & "-"
+                set outputText to outputText & eventDay
+                set outputText to outputText & " "
+                set outputText to outputText & eventHour
+                set outputText to outputText & ":"
+                set outputText to outputText & eventMinute
+                set outputText to outputText & ":"
+                set outputText to outputText & eventSecond
+                set outputText to outputText & "\t"
+                set outputText to outputText & endYear
+                set outputText to outputText & "-"
+                set outputText to outputText & endMonth
+                set outputText to outputText & "-"
+                set outputText to outputText & endDay
+                set outputText to outputText & " "
+                set outputText to outputText & endHour
+                set outputText to outputText & ":"
+                set outputText to outputText & endMinute
+                set outputText to outputText & ":"
+                set outputText to outputText & endSecond
+                set outputText to outputText & "\t"
+                set outputText to outputText & eventRecurrence
+
+                return outputText
+            end tell
+        end tell
+        """
+
+        output = self._run_script(script)
+
+        if not output:
+            return None
+
+        parts = output.split("\t")
+
+        if len(parts) != 3:
+            raise RuntimeError(
+                "Unexpected Apple Calendar event output."
+            )
+
+        event_title = parts[0]
+
+        event_start = datetime.strptime(
+            parts[1],
+            "%Y-%m-%d %H:%M:%S",
+        )
+
+        event_end = datetime.strptime(
+            parts[2],
+            "%Y-%m-%d %H:%M:%S",
+        )
+
+        return {
+            "calendar": calendar_name,
+            "event_id": event_id,
+            "title": event_title,
+            "start": event_start.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            "end": event_end.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            "recurrence": "",
+            "recurring": False,
+        }
+
+    def update_event(
+        self,
+        event_id,
+        title=None,
+        start_time=None,
+        end_time=None,
+        calendar_name=None,
+        location=None,
+        description=None,
+    ):
+        """Update an existing Apple Calendar event."""
+
+        if not event_id:
+            raise ValueError("event_id is required.")
+
+        if all(
+            value is None
+            for value in (
+                title,
+                start_time,
+                end_time,
+                location,
+                description,
+            )
+        ):
+            raise ValueError(
+                "At least one event field must be provided."
+            )
+
+        start = (
+            datetime.fromisoformat(start_time)
+            if start_time is not None
+            else None
+        )
+
+        end = (
+            datetime.fromisoformat(end_time)
+            if end_time is not None
+            else None
+        )
+
+        if (
+            start is not None
+            and end is not None
+            and end <= start
+        ):
+            raise ValueError(
+                "End time must be after start time."
+            )
+
+        if calendar_name is None:
+            calendars = self.get_calendars()
+
+            if not calendars:
+                raise RuntimeError(
+                    "No Apple Calendar calendars found."
+                )
+
+            calendar_name = calendars[0]
+
+        today = datetime.now().date()
+
+        setup_lines = []
+
+        if start is not None:
+            start_offset = (
+                start.date() - today
+            ).days
+
+            start_seconds = (
+                start.hour * 3600
+                + start.minute * 60
+                + start.second
+            )
+
+            setup_lines.extend([
+                "set startDate to current date",
+                "set time of startDate to 0",
+                f"set startDate to startDate + ({start_offset} * days)",
+                f"set startDate to startDate + {start_seconds}",
+            ])
+
+        if end is not None:
+            end_offset = (
+                end.date() - today
+            ).days
+
+            end_seconds = (
+                end.hour * 3600
+                + end.minute * 60
+                + end.second
+            )
+
+            setup_lines.extend([
+                "set endDate to current date",
+                "set time of endDate to 0",
+                f"set endDate to endDate + ({end_offset} * days)",
+                f"set endDate to endDate + {end_seconds}",
+            ])
+
+        update_lines = []
+
+        if title is not None:
+            update_lines.append(
+                f'set summary of targetEvent to "{self._escape_text(title)}"'
+            )
+
+        if start is not None and end is not None:
+            update_lines.append(
+                "set end date of targetEvent to endDate"
+            )
+            update_lines.append(
+                "set start date of targetEvent to startDate"
+            )
+        elif start is not None:
+            update_lines.append(
+                "set start date of targetEvent to startDate"
+            )
+        elif end is not None:
+            update_lines.append(
+                "set end date of targetEvent to endDate"
+            )
+
+        if location is not None:
+            update_lines.append(
+                f'set location of targetEvent to "{self._escape_text(location)}"'
+            )
+
+        if description is not None:
+            update_lines.append(
+                f'set description of targetEvent to "{self._escape_text(description)}"'
+            )
+
+        setup_text = "\n".join(setup_lines)
+        update_text = "\n".join(update_lines)
+
+        escaped_event_id = self._escape_text(event_id)
+        escaped_calendar = self._escape_text(calendar_name)
+
+        script = f"""
+    {setup_text}
+
+    tell application "Calendar"
+        tell calendar "{escaped_calendar}"
+            set matchingEvents to every event whose uid is "{escaped_event_id}"
+
+            if (count of matchingEvents) is 0 then
+                error "Calendar event not found."
+            end if
+
+            set targetEvent to item 1 of matchingEvents
+
+            {update_text}
+
+            save targetEvent
+
+            return uid of targetEvent
+        end tell
+    end tell
+    """
+        return self._run_script(script)
 
     def create_event(
         self,
@@ -389,4 +688,129 @@ class AppleScriptCalendarProvider(CalendarProvider):
         '''
 
         return self._run_script(script)
+
+    def find_events_by_title(
+        self,
+        title,
+        calendar_name=None,
+    ):
+        """Find calendar events directly by title."""
+
+        if not title:
+            raise ValueError("title is required.")
+
+        if calendar_name is None:
+            calendars = self.get_calendars()
+        else:
+            calendars = [calendar_name]
+
+        matches = []
+
+        escaped_title = self._escape_text(title)
+
+        for current_calendar in calendars:
+            escaped_calendar = self._escape_text(
+                current_calendar
+            )
+
+            script = f'''
+            tell application "Calendar"
+                tell calendar "{escaped_calendar}"
+                    set matchingEvents to every event whose summary is "{escaped_title}"
+
+                    set outputText to ""
+
+                    repeat with currentEvent in matchingEvents
+                        set eventUID to uid of currentEvent
+                        set eventTitle to summary of currentEvent
+                        set eventStart to start date of currentEvent
+                        set eventEnd to end date of currentEvent
+
+                        set startYear to year of eventStart
+                        set startMonth to month of eventStart as integer
+                        set startDay to day of eventStart
+                        set startHour to hours of eventStart
+                        set startMinute to minutes of eventStart
+                        set startSecond to seconds of eventStart
+
+                        set endYear to year of eventEnd
+                        set endMonth to month of eventEnd as integer
+                        set endDay to day of eventEnd
+                        set endHour to hours of eventEnd
+                        set endMinute to minutes of eventEnd
+                        set endSecond to seconds of eventEnd
+
+                        set outputText to outputText & eventUID
+                        set outputText to outputText & "\t"
+                        set outputText to outputText & eventTitle
+                        set outputText to outputText & "\t"
+
+                        set outputText to outputText & startYear
+                        set outputText to outputText & "-"
+                        set outputText to outputText & startMonth
+                        set outputText to outputText & "-"
+                        set outputText to outputText & startDay
+                        set outputText to outputText & " "
+                        set outputText to outputText & startHour
+                        set outputText to outputText & ":"
+                        set outputText to outputText & startMinute
+                        set outputText to outputText & ":"
+                        set outputText to outputText & startSecond
+
+                        set outputText to outputText & "\t"
+
+                        set outputText to outputText & endYear
+                        set outputText to outputText & "-"
+                        set outputText to outputText & endMonth
+                        set outputText to outputText & "-"
+                        set outputText to outputText & endDay
+                        set outputText to outputText & " "
+                        set outputText to outputText & endHour
+                        set outputText to outputText & ":"
+                        set outputText to outputText & endMinute
+                        set outputText to outputText & ":"
+                        set outputText to outputText & endSecond
+
+                        set outputText to outputText & "\n"
+                    end repeat
+
+                    return outputText
+                end tell
+            end tell
+            '''
+
+            output = self._run_script(script)
+
+            for line in output.splitlines():
+                parts = line.split("\t")
+
+                if len(parts) != 4:
+                    continue
+
+                event_id = parts[0]
+
+                event_start = datetime.strptime(
+                    parts[2],
+                    "%Y-%m-%d %H:%M:%S",
+                )
+
+                event_end = datetime.strptime(
+                    parts[3],
+                    "%Y-%m-%d %H:%M:%S",
+                )
+
+                matches.append({
+                    "calendar": current_calendar,
+                    "event_id": event_id,
+                    "title": parts[1],
+                    "start": event_start.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "end": event_end.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "recurring": False,
+                })
+
+        return matches
         

@@ -162,3 +162,49 @@ def schedule_plan(
         plan=plan,
         calendar_name=calendar_name,
     )
+
+def recommend_reschedule(
+    event_id,
+    search_start,
+    search_end,
+    calendar_name=None,
+    preference=None,
+):
+    """
+    Recommend a new time for an existing calendar event.
+    """
+
+    return scheduling_service.recommend_reschedule(
+        event_id=event_id,
+        search_start=search_start,
+        search_end=search_end,
+        calendar_name=calendar_name,
+        preference=preference,
+    )
+
+
+def reschedule_event(
+    event_id,
+    new_start,
+    new_end,
+    calendar_name=None,
+):
+    """
+    Move an existing calendar event to a new time.
+    """
+
+    return scheduling_service.reschedule_event(
+        event_id=event_id,
+        new_start=new_start,
+        new_end=new_end,
+        calendar_name=calendar_name,
+    )
+
+def find_calendar_event(
+    title,
+    calendar_name=None,
+):
+    return calendar_service.find_event(
+        title=title,
+        calendar_name=calendar_name,
+    )

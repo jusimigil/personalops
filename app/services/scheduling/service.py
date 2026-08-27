@@ -12,6 +12,7 @@ from services.scheduling.urgency import UrgencyService
 from tools.tasks import get_tasks
 
 from services.scheduling.planner import PlanningService
+from services.scheduling.rescheduling import ReschedulingService
 
 class SchedulingService:
 
@@ -21,6 +22,11 @@ class SchedulingService:
         self.recommendation = RecommendationService()
         self.urgency = UrgencyService()
         self.planner = PlanningService()
+        self.rescheduling = ReschedulingService(
+        calendar=self.calendar,
+        availability=self.availability,
+        recommendation=self.recommendation,
+        )
 
     def find_free_time(
         self,
@@ -377,4 +383,74 @@ class SchedulingService:
                 "result": result,
             })
 
-        return results    
+        return results   
+
+    def recommend_reschedule(
+        self,
+        event_id,
+        search_start,
+        search_end,
+        calendar_name=None,
+        preference=None,
+    ):
+        """
+        Recommend a new time for an existing calendar event.
+        """
+
+        event = self.calendar.get_event_by_id(
+            event_id=event_id,
+            calendar_name=calendar_name,
+        )
+
+        if event is None:
+            return None
+
+        return self.rescheduling.recommend_reschedule(
+            event=event,
+            search_start=search_start,
+            search_end=search_end,
+            preference=preference,
+            calendar_name=calendar_name,
+        )
+
+    def reschedule_event(
+        self,
+        event_id,
+        new_start,
+        new_end,
+        calendar_name=None,
+    ):
+        """
+        Move an existing calendar event to a new time.
+        """
+
+        event = self.calendar.get_event_by_id(
+            event_id=event_id,
+            calendar_name=calendar_name,
+        )
+
+        if event is None:
+            return None
+
+        if event.get("recurring"):
+            raise ValueError(
+                "Recurring events are not supported for "
+                "individual rescheduling yet."
+            )
+
+        result = self.calendar.update_event(
+            event_id=event_id,
+            start_time=new_start,
+            end_time=new_end,
+            calendar_name=calendar_name,
+        )
+
+        return {
+            "event_id": event_id,
+            "title": event["title"],
+            "old_start": event["start"],
+            "old_end": event["end"],
+            "new_start": new_start,
+            "new_end": new_end,
+            "result": result,
+        }

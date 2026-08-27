@@ -17,6 +17,8 @@ from services.usage_tracker import (
     budget_exceeded,
 )
 from services.approval import request_confirmation
+from services.scheduling.service import SchedulingService
+
 
 # --------------------------------------------------
 # Environment
@@ -40,6 +42,7 @@ if not api_key:
 # --------------------------------------------------
 
 client = genai.Client(api_key=api_key)
+scheduling_service = SchedulingService()
 
 conversation_id = None
 
@@ -398,7 +401,35 @@ def ask_agent(user_message: str) -> str:
                         f"{item.get('end')}"
                     )
 
-                description = "\n".join(lines)      
+                description = "\n".join(lines)
+
+            elif function_name == "reschedule_event":
+
+                event_id = arguments.get("event_id")
+                new_start = arguments.get("new_start")
+                new_end = arguments.get("new_end")
+
+                event = None
+
+                if event_id:
+                    event = scheduling_service.calendar.get_event_by_id(
+                        event_id=event_id,
+                        calendar_name=arguments.get("calendar_name"),
+                    )
+
+                if event:
+                    description = (
+                        "Reschedule calendar event:\n\n"
+                        f"  Title: {event['title']}\n"
+                        f"  Current: {event['start']} – {event['end']}\n"
+                        f"  New: {new_start} – {new_end}"
+                    )
+                else:
+                    description = (
+                        "Reschedule calendar event:\n\n"
+                        f"  Event ID: {event_id}\n"
+                        f"  New: {new_start} – {new_end}"
+                    )      
 
             else:
                 description = (
