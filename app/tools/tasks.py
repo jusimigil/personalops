@@ -163,6 +163,29 @@ def clear_task_calendar_event(task_id):
 
     return None
 
+def delete_task(task_id):
+    """
+    Delete a task by ID.
+    """
+
+    tasks = load_tasks()
+
+    remaining_tasks = [
+        task
+        for task in tasks
+        if task["id"] != task_id
+    ]
+
+    if len(remaining_tasks) == len(tasks):
+        return None
+
+    save_tasks(remaining_tasks)
+
+    return {
+        "id": task_id,
+        "deleted": True,
+    }
+
 def complete_task(task_id):
     """
     Mark an existing task as complete.

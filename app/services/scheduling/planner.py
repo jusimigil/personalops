@@ -47,6 +47,12 @@ class PlanningService:
             eligible_tasks
         )
 
+        schedule = []
+        total_scheduled_minutes = 0
+
+        # Keep track of already-occupied intervals.
+        occupied = []
+
         # ------------------------------------------
         # Generate candidates for each task
         # ------------------------------------------
@@ -60,6 +66,33 @@ class PlanningService:
             )
 
             candidates = []
+
+            # --------------------------------------
+            # Determine preference
+            # --------------------------------------
+
+            preferred_evening = False
+            preferred_morning = False
+
+            if preference:
+                preference_lower = preference.lower()
+
+                preferred_evening = (
+                    "difficult" in preference_lower
+                    and "night" in preference_lower
+                )
+
+                preferred_morning = (
+                    "morning" in preference_lower
+                )
+
+            is_highly_urgent = (
+                task.get("urgency_score", 0) >= 100
+            )
+
+            # --------------------------------------
+            # Generate candidate slots
+            # --------------------------------------
 
             for block in free_blocks:
 
@@ -82,6 +115,40 @@ class PlanningService:
                         candidate_start + duration
                     )
 
+                    start_hour = candidate_start.hour
+
+                    # ----------------------------------
+                    # Protect preferred evening window
+                    # ----------------------------------
+
+                    if preferred_evening:
+
+                        # Highly urgent/difficult work
+                        # belongs in the evening.
+                        if (
+                            is_highly_urgent
+                            and start_hour < 18
+                        ):
+                            candidate_start += timedelta(
+                                minutes=30
+                            )
+                            continue
+
+                        # Don't let lower-urgency tasks
+                        # consume the evening window.
+                        if (
+                            not is_highly_urgent
+                            and start_hour >= 18
+                        ):
+                            candidate_start += timedelta(
+                                minutes=30
+                            )
+                            continue
+
+                    # ----------------------------------
+                    # Score candidate
+                    # ----------------------------------
+
                     candidate = {
                         "start": candidate_start,
                         "end": candidate_end,
@@ -102,46 +169,33 @@ class PlanningService:
                     # Whole-day placement adjustment
                     # ----------------------------------
 
-                    start_hour = candidate_start.hour
-
-                    if preference:
-                        preference_lower = preference.lower()
+                    if preferred_evening:
 
                         if (
-                            "difficult" in preference_lower
-                            and "night" in preference_lower
+                            start_hour >= 18
+                            and is_highly_urgent
                         ):
-                            if (
-                                start_hour >= 18
-                                and task.get("urgency_score", 0) >= 80
-                            ):
-                                score += 15
-
-                            elif (
-                                start_hour >= 18
-                                and task.get("urgency_score", 0) < 80
-                            ):
-                                score -= 10
+                            score += 15
 
                         elif (
-                            "morning" in preference_lower
-                            and start_hour < 12
+                            start_hour >= 18
+                            and not is_highly_urgent
                         ):
-                            if task.get(
-                                "urgency_score",
-                                0,
-                            ) >= 80:
-                                score += 15
+                            score -= 10
+
+                    elif (
+                        preferred_morning
+                        and start_hour < 12
+                    ):
+                        if is_highly_urgent:
+                            score += 15
 
                     # ----------------------------------
                     # Prefer earlier placement for
-                    # extremely urgent tasks.
+                    # extremely urgent tasks
                     # ----------------------------------
 
-                    if task.get(
-                        "urgency_score",
-                        0,
-                    ) >= 100:
+                    if is_highly_urgent:
 
                         hours_from_start = (
                             candidate_start
@@ -152,6 +206,7 @@ class PlanningService:
 
                         score -= hours_from_start
 
+                    # Avoid ending at or after midnight.
                     if candidate_end.hour == 0:
                         score -= 10
 
@@ -253,6 +308,7 @@ class PlanningService:
                 overlaps = False
 
                 for busy_start, busy_end in occupied:
+
                     if (
                         candidate["start"] < busy_end
                         and candidate["end"] > busy_start
@@ -288,12 +344,38 @@ class PlanningService:
                     ]
                 )
 
+                # ----------------------------------
+                # Urgency-aware ordering bonus
+                # ----------------------------------
+
+                ordering_bonus = 0
+
+                if task.get(
+                    "urgency_score",
+                    0,
+                ) >= 100:
+
+                    hours_from_midnight = (
+                        candidate["start"].hour
+                        + (
+                            candidate["start"].minute
+                            / 60
+                        )
+                    )
+
+                    ordering_bonus += max(
+                        0,
+                        23 - hours_from_midnight,
+                    ) * 2
+
                 search(
                     index + 1,
                     new_schedule,
                     new_occupied,
                     total_minutes + task_minutes,
-                    total_score + candidate["score"],
+                    total_score
+                    + candidate["score"]
+                    + ordering_bonus,
                 )
 
         search(

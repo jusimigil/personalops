@@ -17,6 +17,9 @@ from tools.tasks import (
 from services.scheduling.planner import PlanningService
 from services.scheduling.rescheduling import ReschedulingService
 
+SCHEDULE_CALENDAR = "term 1"
+DEADLINE_CALENDAR = "exams/assign"
+
 class SchedulingService:
 
     def __init__(self):
@@ -452,7 +455,7 @@ class SchedulingService:
         earliest_hour=7,
         latest_hour=23,
         break_minutes=30,
-        calendar_name=None,
+        calendar_name=SCHEDULE_CALENDAR,
         max_work_minutes=360,
     ):
         """
@@ -492,7 +495,7 @@ class SchedulingService:
         # ------------------------------------------
         # Load calendar events
         # ------------------------------------------
-
+        
         events = self.calendar.get_events(
             start_time=search_start.strftime(
                 "%Y-%m-%d %H:%M:%S"
@@ -769,6 +772,7 @@ class SchedulingService:
             "breaks": breaks,
             "free_time": free_time,
             "calendar_events": events,
+            "calendar_name": calendar_name,
             "max_work_minutes": max_work_minutes,
             "existing_work_minutes": existing_work_minutes,
             "new_work_minutes": new_work_minutes,
@@ -778,7 +782,7 @@ class SchedulingService:
     def schedule_plan(
         self,
         plan,
-        calendar_name=None,
+        calendar_name=SCHEDULE_CALENDAR,
     ):
         """
         Validate and create all events in an approved plan.
@@ -869,6 +873,7 @@ class SchedulingService:
         for item in validated_items:
 
             task = item["task"]
+            task_id = task["id"]
 
             event_id = self.calendar.create_event(
                 title=task["title"],

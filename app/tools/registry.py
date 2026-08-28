@@ -648,9 +648,12 @@ TOOL_DEFINITIONS = [
         "type": "function",
         "name": "schedule_plan",
         "description": (
-            "Schedule an entire proposed task plan in Apple "
-            "Calendar. Use this only when the user explicitly "
-            "approves the proposed plan."
+            "Create calendar events for the recommended tasks in an "
+            "approved daily plan. Each plan item's task object MUST "
+            "include the original PersonalOps task ID from plan_day. "
+            "Preserve task IDs exactly; do not replace them with "
+            "title-only task objects. Do not include already-scheduled "
+            "tasks from scheduled_existing."
         ),
         "parameters": {
             "type": "object",
@@ -666,11 +669,22 @@ TOOL_DEFINITIONS = [
                             "task": {
                                 "type": "object",
                                 "properties": {
+                                    "id": {
+                                        "type": "integer",
+                                        "description": (
+                                            "Original PersonalOps task ID returned by "
+                                            "plan_day. Preserve this ID exactly."
+                                        ),
+                                    },
                                     "title": {
-                                        "type": "string"
-                                    }
+                                        "type": "string",
+                                        "description": "Original PersonalOps task title.",
+                                    },
                                 },
-                                "required": ["title"],
+                                "required": [
+                                    "id",
+                                    "title",
+                                ],
                             },
                             "start": {
                                 "type": "string",
@@ -697,7 +711,8 @@ TOOL_DEFINITIONS = [
                 "calendar_name": {
                     "type": "string",
                     "description": (
-                        "Optional Apple Calendar name."
+                        "Calendar used by the plan. When the plan came from "
+                        "plan_day, preserve the calendar_name returned by plan_day."
                     ),
                 },
             },
