@@ -23,6 +23,10 @@ class PlanningService:
     ):
         """
         Build a non-overlapping multi-task schedule.
+
+        Uses the existing recommendation score for individual
+        candidates, then evaluates combinations of candidates
+        to choose a better overall daily arrangement.
         """
 
         eligible_tasks = [
@@ -33,6 +37,7 @@ class PlanningService:
                 "in progress",
             }
             and task.get("estimated_minutes")
+            and not task.get("calendar_event_id")
         ]
 
         if not eligible_tasks:
@@ -42,28 +47,19 @@ class PlanningService:
             eligible_tasks
         )
 
-        schedule = []
-        total_scheduled_minutes = 0
+        # ------------------------------------------
+        # Generate candidates for each task
+        # ------------------------------------------
 
-        # Keep track of already-occupied intervals.
-        occupied = []
+        task_candidates = {}
 
         for task in ranked_tasks:
-
-            if (
-                max_work_minutes is not None
-                and total_scheduled_minutes
-                >= max_work_minutes
-            ):
-                break
 
             duration = timedelta(
                 minutes=task["estimated_minutes"]
             )
 
-            best_candidate = None
-            best_score = float("-inf")
-            best_breakdown = {}
+            candidates = []
 
             for block in free_blocks:
 
@@ -85,27 +81,6 @@ class PlanningService:
                     candidate_end = (
                         candidate_start + duration
                     )
-
-                    # ----------------------------------
-                    # Check for overlap
-                    # ----------------------------------
-
-                    overlaps = False
-
-                    for busy_start, busy_end in occupied:
-
-                        if (
-                            candidate_start < busy_end
-                            and candidate_end > busy_start
-                        ):
-                            overlaps = True
-                            break
-
-                    if overlaps:
-                        candidate_start += timedelta(
-                            minutes=30
-                        )
-                        continue
 
                     candidate = {
                         "start": candidate_start,
@@ -136,27 +111,37 @@ class PlanningService:
                             "difficult" in preference_lower
                             and "night" in preference_lower
                         ):
-                            # Reserve evening availability primarily for
-                            # more urgent work.
-                            if start_hour >= 18 and task["urgency_score"] >= 80:
+                            if (
+                                start_hour >= 18
+                                and task.get("urgency_score", 0) >= 80
+                            ):
                                 score += 15
 
-                            # Penalize placing lower-urgency work into
-                            # preferred evening hours when it can reasonably
-                            # be done elsewhere.
-                            elif start_hour >= 18 and task["urgency_score"] < 80:
+                            elif (
+                                start_hour >= 18
+                                and task.get("urgency_score", 0) < 80
+                            ):
                                 score -= 10
 
                         elif (
                             "morning" in preference_lower
                             and start_hour < 12
                         ):
-                            if task["urgency_score"] >= 80:
+                            if task.get(
+                                "urgency_score",
+                                0,
+                            ) >= 80:
                                 score += 15
 
-                    # Slightly favor earlier placement for
-                    # very urgent tasks.
-                    if task["urgency_score"] >= 100:
+                    # ----------------------------------
+                    # Prefer earlier placement for
+                    # extremely urgent tasks.
+                    # ----------------------------------
+
+                    if task.get(
+                        "urgency_score",
+                        0,
+                    ) >= 100:
 
                         hours_from_start = (
                             candidate_start
@@ -167,76 +152,192 @@ class PlanningService:
 
                         score -= hours_from_start
 
-                    # Avoid ending at or after midnight.
                     if candidate_end.hour == 0:
                         score -= 10
 
-                    if score > best_score:
-
-                        best_score = score
-                        best_candidate = candidate
-                        best_breakdown = scoring["breakdown"]
+                    candidates.append({
+                        **candidate,
+                        "score": score,
+                        "score_breakdown": scoring[
+                            "breakdown"
+                        ],
+                    })
 
                     candidate_start += timedelta(
                         minutes=30
                     )
 
-            if best_candidate is None:
-                continue
+            candidates.sort(
+                key=lambda candidate: (
+                    candidate["score"],
+                    candidate["start"],
+                ),
+                reverse=True,
+            )
 
-            task_start = best_candidate["start"]
-            task_end = best_candidate["end"]
+            if candidates:
+                task_candidates[task["id"]] = candidates
 
+        if not task_candidates:
+            return []
+
+        # ------------------------------------------
+        # Search for the best combination
+        # ------------------------------------------
+
+        best_schedule = []
+        best_score = float("-inf")
+
+        def search(
+            index,
+            current_schedule,
+            occupied,
+            total_minutes,
+            total_score,
+        ):
+            nonlocal best_schedule
+            nonlocal best_score
+
+            # --------------------------------------
+            # Update best solution
+            # --------------------------------------
+
+            if total_score > best_score:
+                best_score = total_score
+                best_schedule = list(
+                    current_schedule
+                )
+
+            if index >= len(ranked_tasks):
+                return
+
+            task = ranked_tasks[index]
+            task_id = task["id"]
             task_minutes = task[
                 "estimated_minutes"
             ]
 
-            if (
-                max_work_minutes is not None
-                and (
-                    total_scheduled_minutes
-                    + task_minutes
-                    > max_work_minutes
+            candidates = task_candidates.get(
+                task_id,
+                [],
+            )
+
+            # --------------------------------------
+            # Option 1: leave task unscheduled
+            # --------------------------------------
+
+            search(
+                index + 1,
+                current_schedule,
+                occupied,
+                total_minutes,
+                total_score,
+            )
+
+            # --------------------------------------
+            # Option 2: schedule task
+            # --------------------------------------
+
+            for candidate in candidates:
+
+                if (
+                    max_work_minutes is not None
+                    and (
+                        total_minutes
+                        + task_minutes
+                        > max_work_minutes
+                    )
+                ):
+                    continue
+
+                overlaps = False
+
+                for busy_start, busy_end in occupied:
+                    if (
+                        candidate["start"] < busy_end
+                        and candidate["end"] > busy_start
+                    ):
+                        overlaps = True
+                        break
+
+                if overlaps:
+                    continue
+
+                new_schedule = (
+                    current_schedule
+                    + [{
+                        "task": task,
+                        "candidate": candidate,
+                    }]
                 )
-            ):
-                continue
+
+                new_occupied = (
+                    occupied
+                    + [
+                        (
+                            candidate["start"],
+                            candidate["end"],
+                        ),
+                        (
+                            candidate["end"],
+                            candidate["end"]
+                            + timedelta(
+                                minutes=break_minutes
+                            ),
+                        ),
+                    ]
+                )
+
+                search(
+                    index + 1,
+                    new_schedule,
+                    new_occupied,
+                    total_minutes + task_minutes,
+                    total_score + candidate["score"],
+                )
+
+        search(
+            index=0,
+            current_schedule=[],
+            occupied=[],
+            total_minutes=0,
+            total_score=0,
+        )
+
+        # ------------------------------------------
+        # Convert best solution to public format
+        # ------------------------------------------
+
+        schedule = []
+
+        for item in best_schedule:
+
+            task = item["task"]
+            candidate = item["candidate"]
 
             schedule.append({
                 "task": task,
-                "start": task_start.strftime(
+                "start": candidate["start"].strftime(
                     "%Y-%m-%d %H:%M:%S"
                 ),
-                "end": task_end.strftime(
+                "end": candidate["end"].strftime(
                     "%Y-%m-%d %H:%M:%S"
                 ),
                 "duration_minutes": task[
                     "estimated_minutes"
                 ],
-                "score": best_score,
-                "score_breakdown": best_breakdown,
+                "score": candidate["score"],
+                "score_breakdown": candidate[
+                    "score_breakdown"
+                ],
                 "reasons": self._build_reasons(
                     task=task,
-                    score_breakdown=best_breakdown,
+                    score_breakdown=candidate[
+                        "score_breakdown"
+                    ],
                     preference=preference,
                 ),
             })
-
-            total_scheduled_minutes += task_minutes
-
-            # Reserve the task itself.
-            occupied.append(
-                (task_start, task_end)
-            )
-
-            # Reserve the break immediately after it.
-            occupied.append(
-                (
-                    task_end,
-                    task_end + timedelta(
-                        minutes=break_minutes
-                    ),
-                )
-            )
 
         schedule.sort(
             key=lambda item: item["start"]
