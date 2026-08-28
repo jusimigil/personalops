@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime, timedelta
 from tools.memory import search_memories
 
 from services.calendar.service import CalendarService
@@ -26,7 +26,9 @@ class SchedulingService:
         self.calendar = CalendarService()
         self.availability = AvailabilityService()
         self.recommendation = RecommendationService()
-        self.urgency = UrgencyService()
+        self.urgency = UrgencyService(
+            calendar_service=self.calendar,
+        )
         self.planner = PlanningService()
         self.rescheduling = ReschedulingService(
         calendar=self.calendar,
@@ -413,6 +415,8 @@ class SchedulingService:
         latest_hour=23,
         break_minutes=30,
         max_work_minutes=None,
+        deadline_events=None,
+        reference_date=None,
     ):
         """
         Build a schedule for eligible tasks.
@@ -447,6 +451,8 @@ class SchedulingService:
             break_minutes=break_minutes,
             preference=preference,
             max_work_minutes=max_work_minutes,
+            deadline_events=deadline_events,
+            reference_date=reference_date,
         )
 
     def plan_day(
@@ -504,6 +510,20 @@ class SchedulingService:
                 "%Y-%m-%d %H:%M:%S"
             ),
             calendar_name=calendar_name,
+        )
+
+        deadline_search_start = day_start
+
+        deadline_search_end = day_end + timedelta(days=7)
+
+        deadline_events = self.calendar.get_events(
+            start_time=deadline_search_start.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            end_time=deadline_search_end.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            calendar_name=DEADLINE_CALENDAR,
         )
 
         # ------------------------------------------
@@ -604,6 +624,11 @@ class SchedulingService:
             latest_hour=latest_hour,
             break_minutes=break_minutes,
             max_work_minutes=remaining_work_minutes,
+            deadline_events=deadline_events,
+            reference_date=datetime.strptime(
+                date,
+                "%Y-%m-%d",
+            ).date(),
         )
 
         # ------------------------------------------
@@ -772,6 +797,7 @@ class SchedulingService:
             "breaks": breaks,
             "free_time": free_time,
             "calendar_events": events,
+            "deadline_events": deadline_events,
             "calendar_name": calendar_name,
             "max_work_minutes": max_work_minutes,
             "existing_work_minutes": existing_work_minutes,

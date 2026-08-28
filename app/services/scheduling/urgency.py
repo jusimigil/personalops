@@ -1,11 +1,17 @@
 from datetime import date, datetime
 
+DEADLINE_CALENDAR = "exams/assign"
+
 
 class UrgencyService:
     """
     Deterministically calculates how urgently a task
     should be considered for scheduling.
     """
+    def __init__(self, calendar_service=None):
+        self.calendar = calendar_service
+
+    DEADLINE_EVENT_BONUS = 15
 
     PRIORITY_WEIGHTS = {
         "low": 10,
@@ -134,7 +140,87 @@ class UrgencyService:
             },
         }
 
-    def rank_tasks(self, tasks, reference_date=None):
+    def match_deadline_event(
+        self,
+        task,
+        events,
+    ):
+        """
+        Find an exams/assign event that appears to
+        correspond to the task.
+        """
+
+        task_title = task.get("title")
+
+        if not task_title:
+            return None
+
+        task_title_lower = task_title.lower()
+
+        for event in events:
+
+            event_title = event.get(
+                "title",
+                "",
+            ).lower()
+
+            if (
+                task_title_lower in event_title
+                or event_title in task_title_lower
+            ):
+                return event
+
+        return None
+
+    def calculate_deadline_event_bonus(
+        self,
+        event,
+        reference_date=None,
+    ):
+        """
+        Calculate urgency bonus based on the deadline
+        date represented by an exams/assign event.
+        """
+
+        if event is None:
+            return 0
+
+        if reference_date is None:
+            reference_date = date.today()
+
+        event_start = datetime.fromisoformat(
+            event["start"]
+        )
+
+        deadline_date = event_start.date()
+
+        days_remaining = (
+            deadline_date - reference_date
+        ).days
+
+        if days_remaining < 0:
+            return 25
+
+        if days_remaining == 0:
+            return 25
+
+        if days_remaining == 1:
+            return 20
+
+        if days_remaining <= 3:
+            return 15
+
+        if days_remaining <= 7:
+            return 10
+
+        return 5
+
+    def rank_tasks(
+        self,
+        tasks,
+        reference_date=None,
+        deadline_events=None,
+    ):
         """
         Return tasks sorted from most urgent to least urgent.
         """
@@ -148,10 +234,33 @@ class UrgencyService:
                 reference_date=reference_date,
             )
 
+            deadline_event = None
+            deadline_event_score = 0
+
+            if deadline_events:
+                deadline_event = self.match_deadline_event(
+                    task=task,
+                    events=deadline_events,
+                )
+
+                deadline_event_score = (
+                    self.calculate_deadline_event_bonus(
+                        event=deadline_event,
+                        reference_date=reference_date,
+                    )
+                )
+
             ranked.append({
                 **task,
-                "urgency_score": urgency["score"],
-                "urgency_breakdown": urgency["breakdown"],
+                "urgency_score": (
+                    urgency["score"]
+                    + deadline_event_score
+                ),
+                "urgency_breakdown": {
+                    **urgency["breakdown"],
+                    "deadline_event": deadline_event_score,
+                },
+                "deadline_event": deadline_event,
             })
 
         ranked.sort(
@@ -160,3 +269,4 @@ class UrgencyService:
         )
 
         return ranked
+

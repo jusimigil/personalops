@@ -20,6 +20,8 @@ class PlanningService:
         break_minutes=30,
         preference=None,
         max_work_minutes=None,
+        deadline_events=None,
+        reference_date=None,
     ):
         """
         Build a non-overlapping multi-task schedule.
@@ -44,7 +46,9 @@ class PlanningService:
             return []
 
         ranked_tasks = self.urgency.rank_tasks(
-            eligible_tasks
+            eligible_tasks,
+            reference_date=reference_date,
+            deadline_events=deadline_events,
         )
 
         schedule = []
@@ -434,6 +438,17 @@ class PlanningService:
         preference=None,
     ):
         reasons = []
+
+        deadline_event_score = score_breakdown.get(
+            "deadline_event",
+            0,
+        )
+
+        if deadline_event_score > 0:
+            reasons.append(
+                "A matching deadline was found in "
+                "your exams/assign calendar."
+            )
 
         if score_breakdown.get("preferred_time", 0) > 0:
             reasons.append(

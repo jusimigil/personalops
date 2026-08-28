@@ -833,6 +833,7 @@ class AppleScriptCalendarProvider(CalendarProvider):
             '''
 
             output = self._run_script(script)
+            print("RAW CALENDAR OUTPUT:", repr(output))
 
             for line in output.splitlines():
                 parts = line.split("\t")
