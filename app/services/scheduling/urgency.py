@@ -24,7 +24,12 @@ class UrgencyService:
         "in progress": 10,
     }
 
-    def calculate(self, task, reference_date=None):
+    def calculate(
+        self,
+        task,
+        reference_date=None,
+        effective_due_date=None,
+    ):
         """
         Calculate an urgency score and its breakdown.
         """
@@ -69,16 +74,21 @@ class UrgencyService:
         # Due date
         # ------------------------------------------
 
-        due_date_string = task.get(
-            "due_date"
-        )
+        due_date = effective_due_date
 
-        if due_date_string:
+        if due_date is None:
 
-            due_date = datetime.strptime(
-                due_date_string,
-                "%Y-%m-%d",
-            ).date()
+            due_date_string = task.get(
+                "due_date"
+            )
+
+            if due_date_string:
+                due_date = datetime.strptime(
+                    due_date_string,
+                    "%Y-%m-%d",
+                ).date()
+
+        if due_date:
 
             days_remaining = (
                 due_date - reference_date
@@ -215,6 +225,33 @@ class UrgencyService:
 
         return 5
 
+    def get_effective_due_date(
+        self,
+        task,
+        deadline_event=None,
+    ):
+        """
+        Return the task's explicit due date when available.
+        Otherwise use the matching exams/assign deadline date.
+        """
+
+        task_due_date = task.get("due_date")
+
+        if task_due_date:
+            return datetime.strptime(
+                task_due_date,
+                "%Y-%m-%d",
+            ).date()
+
+        if deadline_event:
+            event_start = datetime.fromisoformat(
+                deadline_event["start"]
+            )
+
+            return event_start.date()
+
+        return None
+
     def rank_tasks(
         self,
         tasks,
@@ -229,13 +266,11 @@ class UrgencyService:
 
         for task in tasks:
 
-            urgency = self.calculate(
-                task,
-                reference_date=reference_date,
-            )
-
             deadline_event = None
-            deadline_event_score = 0
+
+            # ------------------------------------------
+            # Match exams/assign deadline event
+            # ------------------------------------------
 
             if deadline_events:
                 deadline_event = self.match_deadline_event(
@@ -243,12 +278,42 @@ class UrgencyService:
                     events=deadline_events,
                 )
 
+            # ------------------------------------------
+            # Determine effective due date
+            # ------------------------------------------
+
+            effective_due_date = self.get_effective_due_date(
+                task=task,
+                deadline_event=deadline_event,
+            )
+
+            # ------------------------------------------
+            # Calculate base urgency
+            # ------------------------------------------
+
+            urgency = self.calculate(
+                task,
+                reference_date=reference_date,
+                effective_due_date=effective_due_date,
+            )
+
+            # ------------------------------------------
+            # Calculate deadline-event bonus
+            # ------------------------------------------
+
+            deadline_event_score = 0
+
+            if deadline_event is not None:
                 deadline_event_score = (
                     self.calculate_deadline_event_bonus(
                         event=deadline_event,
                         reference_date=reference_date,
                     )
                 )
+
+            # ------------------------------------------
+            # Store ranked task
+            # ------------------------------------------
 
             ranked.append({
                 **task,
@@ -261,6 +326,11 @@ class UrgencyService:
                     "deadline_event": deadline_event_score,
                 },
                 "deadline_event": deadline_event,
+                "effective_due_date": (
+                    effective_due_date.isoformat()
+                    if effective_due_date
+                    else None
+                ),
             })
 
         ranked.sort(
