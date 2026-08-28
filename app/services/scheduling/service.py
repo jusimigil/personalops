@@ -468,7 +468,125 @@ class SchedulingService:
         )
 
         # ------------------------------------------
-        # Build the schedule using existing planner
+        # Load tasks
+        # ------------------------------------------
+
+        tasks = get_tasks()
+
+        # ------------------------------------------
+        # Calculate scheduling window
+        # ------------------------------------------
+
+        search_start = day_start.replace(
+            hour=earliest_hour,
+            minute=0,
+            second=0,
+        )
+
+        search_end = day_end.replace(
+            hour=latest_hour,
+            minute=0,
+            second=0,
+        )
+
+        # ------------------------------------------
+        # Load calendar events
+        # ------------------------------------------
+
+        events = self.calendar.get_events(
+            start_time=search_start.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            end_time=search_end.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            calendar_name=calendar_name,
+        )
+
+        # ------------------------------------------
+        # Identify already-scheduled task sessions
+        # ------------------------------------------
+
+        scheduled_existing = []
+
+        for task in tasks:
+
+            event_id = task.get("calendar_event_id")
+
+            if not event_id:
+                continue
+
+            if task.get("status") == "complete":
+                continue
+
+            task_calendar = (
+                task.get("calendar_name")
+                or calendar_name
+            )
+
+            if not task_calendar:
+                continue
+
+            matching_event = self.calendar.get_event_by_id(
+                event_id=event_id,
+                calendar_name=task_calendar,
+            )
+
+            if matching_event is None:
+                continue
+
+            event_start = datetime.fromisoformat(
+                matching_event["start"]
+            )
+
+            event_end = datetime.fromisoformat(
+                matching_event["end"]
+            )
+
+            if (
+                event_start >= search_end
+                or event_end <= search_start
+            ):
+                continue
+
+            scheduled_existing.append({
+                "task": task,
+                "event": matching_event,
+            })
+
+        # ------------------------------------------
+        # Calculate existing workload
+        # ------------------------------------------
+
+        existing_work_minutes = sum(
+            int(
+                (
+                    datetime.fromisoformat(
+                        item["event"]["end"]
+                    )
+                    - datetime.fromisoformat(
+                        item["event"]["start"]
+                    )
+                ).total_seconds()
+                / 60
+            )
+            for item in scheduled_existing
+        )
+
+        # ------------------------------------------
+        # Calculate remaining workload budget
+        # ------------------------------------------
+
+        if max_work_minutes is None:
+            remaining_work_minutes = None
+        else:
+            remaining_work_minutes = max(
+                0,
+                max_work_minutes - existing_work_minutes,
+            )
+
+        # ------------------------------------------
+        # Build schedule using existing planner
         # ------------------------------------------
 
         schedule = self.plan_tasks(
@@ -482,14 +600,12 @@ class SchedulingService:
             earliest_hour=earliest_hour,
             latest_hour=latest_hour,
             break_minutes=break_minutes,
-            max_work_minutes=max_work_minutes,
+            max_work_minutes=remaining_work_minutes,
         )
 
         # ------------------------------------------
-        # Load eligible tasks
+        # Identify eligible tasks
         # ------------------------------------------
-
-        tasks = get_tasks()
 
         eligible_tasks = [
             task
@@ -518,7 +634,7 @@ class SchedulingService:
         ]
 
         # ------------------------------------------
-        # Determine breaks
+        # Determine planned breaks
         # ------------------------------------------
 
         breaks = []
@@ -553,46 +669,30 @@ class SchedulingService:
                     "duration_minutes": gap_minutes,
                 })
 
-        search_start = day_start.replace(
-            hour=earliest_hour,
-            minute=0,
-            second=0,
-        )
-
-        search_end = day_end.replace(
-            hour=latest_hour,
-            minute=0,
-            second=0,
-        )
-
-        events = self.calendar.get_events(
-            start_time=search_start.strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
-            end_time=search_end.strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
-            calendar_name=calendar_name,
-        )
+        # ------------------------------------------
+        # Determine remaining free time
+        # ------------------------------------------
 
         free_time = []
 
         previous_end = search_start
 
-        for index, item in enumerate(schedule):
+        for item in schedule:
+
             current_start = datetime.fromisoformat(
                 item["start"]
             )
 
             if current_start > previous_end:
+
                 gap_minutes = int(
                     (
-                        current_start - previous_end
+                        current_start
+                        - previous_end
                     ).total_seconds()
                     / 60
                 )
 
-                # Check whether this gap is a planned break.
                 is_planned_break = any(
                     break_item["start"]
                     == previous_end.strftime(
@@ -618,13 +718,17 @@ class SchedulingService:
 
             previous_end = max(
                 previous_end,
-                datetime.fromisoformat(item["end"]),
+                datetime.fromisoformat(
+                    item["end"]
+                ),
             )
 
         if previous_end < search_end:
+
             gap_minutes = int(
                 (
-                    search_end - previous_end
+                    search_end
+                    - previous_end
                 ).total_seconds()
                 / 60
             )
@@ -639,18 +743,36 @@ class SchedulingService:
                 "duration_minutes": gap_minutes,
             })
 
+        # ------------------------------------------
+        # Calculate workload totals
+        # ------------------------------------------
+
+        new_work_minutes = sum(
+            item["duration_minutes"]
+            for item in schedule
+        )
+
+        scheduled_work_minutes = (
+            existing_work_minutes
+            + new_work_minutes
+        )
+
+        # ------------------------------------------
+        # Return complete daily plan
+        # ------------------------------------------
+
         return {
             "date": date,
+            "scheduled_existing": scheduled_existing,
             "schedule": schedule,
             "unscheduled_tasks": unscheduled_tasks,
             "breaks": breaks,
             "free_time": free_time,
             "calendar_events": events,
             "max_work_minutes": max_work_minutes,
-            "scheduled_work_minutes": sum(
-                item["duration_minutes"]
-                for item in schedule
-            ),
+            "existing_work_minutes": existing_work_minutes,
+            "new_work_minutes": new_work_minutes,
+            "scheduled_work_minutes": scheduled_work_minutes,
         }
 
     def schedule_plan(
