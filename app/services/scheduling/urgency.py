@@ -156,8 +156,13 @@ class UrgencyService:
         events,
     ):
         """
-        Find an exams/assign event that appears to
-        correspond to the task.
+        Find an exams/assign event that appears to correspond
+        to the task.
+
+        Matching is intentionally conservative:
+        - Exact normalized title match is accepted.
+        - A known deadline suffix after the task title is accepted.
+        - Arbitrary extra words are not enough for a match.
         """
 
         task_title = task.get("title")
@@ -165,20 +170,55 @@ class UrgencyService:
         if not task_title:
             return None
 
-        task_title_lower = task_title.lower()
+        deadline_suffixes = {
+            "deadline",
+            "due",
+            "due date",
+            "assignment",
+            "assignment due",
+            "submission",
+            "submission due",
+            "submit",
+            "exam",
+            "test",
+            "project",
+            "requirement",
+        }
+
+        def normalize(text):
+            return " ".join(
+                text.lower()
+                .replace("-", " ")
+                .split()
+            )
+
+        normalized_task = normalize(task_title)
 
         for event in events:
 
-            event_title = event.get(
-                "title",
-                "",
-            ).lower()
+            event_title = normalize(
+                event.get("title", "")
+            )
 
-            if (
-                task_title_lower in event_title
-                or event_title in task_title_lower
-            ):
+            # --------------------------------------
+            # Exact match
+            # --------------------------------------
+
+            if event_title == normalized_task:
                 return event
+
+            # --------------------------------------
+            # Task title + recognized deadline suffix
+            # --------------------------------------
+
+            for suffix in deadline_suffixes:
+
+                expected_title = (
+                    f"{normalized_task} {suffix}"
+                )
+
+                if event_title == expected_title:
+                    return event
 
         return None
 
