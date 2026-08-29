@@ -44,7 +44,9 @@ def create_task(
     due_date=None,
     priority="medium",
     estimated_minutes=None,
-    ):
+    course_id=None,
+    assignment_id=None,
+):
     """
     Create a new task.
 
@@ -56,6 +58,26 @@ def create_task(
     Returns:
         The newly created task.
     """
+
+    if assignment_id is not None:
+
+        from tools.assignments import get_assignments
+
+        assignment = next(
+            (
+                assignment
+                for assignment in get_assignments()
+                if assignment["id"] == assignment_id
+            ),
+            None,
+        )
+
+        if assignment is None:
+            raise ValueError(
+                f"Assignment {assignment_id} does not exist."
+            )
+
+        course_id = assignment["course_id"]
 
     tasks = load_tasks()
 
@@ -74,6 +96,8 @@ def create_task(
         "estimated_minutes": estimated_minutes,
         "calendar_event_id": None,
         "calendar_name": None,
+        "course_id": course_id,
+        "assignment_id": assignment_id,
     }
 
     tasks.append(new_task)
@@ -88,12 +112,34 @@ def update_task(
     priority=None,
     status=None,
     estimated_minutes=None,
+    course_id=None,
+    assignment_id=None,
 ):
     """
     Update an existing task.
 
     Only provided fields are changed.
     """
+
+    if assignment_id is not None:
+
+        from tools.assignments import get_assignments
+
+        assignment = next(
+            (
+                assignment
+                for assignment in get_assignments()
+                if assignment["id"] == assignment_id
+            ),
+            None,
+        )
+
+        if assignment is None:
+            raise ValueError(
+                f"Assignment {assignment_id} does not exist."
+            )
+
+        task["assignment_id"] = assignment_id
 
     tasks = load_tasks()
 
@@ -115,6 +161,9 @@ def update_task(
 
         if estimated_minutes is not None:
             task["estimated_minutes"] = estimated_minutes
+
+        if course_id is not None:
+            task["course_id"] = course_id
 
         save_tasks(tasks)
         return task
@@ -196,3 +245,15 @@ def complete_task(task_id):
         status="complete",
     )
 
+def get_assignment_tasks(assignment_id):
+    """
+    Return all tasks associated with an assignment.
+    """
+
+    from tools.tasks import get_tasks
+
+    return [
+        task
+        for task in get_tasks()
+        if task.get("assignment_id") == assignment_id
+    ]

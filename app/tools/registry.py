@@ -29,6 +29,26 @@ from tools.calendar import (
     plan_day,
 )
 
+from tools.courses import (
+    get_courses,
+    create_course,
+    update_course,
+    delete_course,
+    get_course_tasks,
+    get_course_overview,
+)
+
+from tools.assignments import (
+    get_assignments,
+    create_assignment,
+    update_assignment,
+    get_assignment_tasks,
+    get_assignment_progress,
+    create_assignment_task,
+    get_upcoming_assignments,
+    get_academic_workload,
+)
+
 
 # ==================================================
 # Python implementations
@@ -59,6 +79,23 @@ TOOL_FUNCTIONS = {
     "find_calendar_event": find_calendar_event,
     "reschedule_task": reschedule_task,
     "plan_day": plan_day,
+
+    "get_courses": get_courses,
+    "create_course": create_course,
+    "update_course": update_course,
+    "delete_course": delete_course,
+    "get_course_tasks": get_course_tasks,
+    "get_course_overview": get_course_overview,
+
+    "get_assignments": get_assignments,
+    "create_assignment": create_assignment,
+    "update_assignment": update_assignment,
+    "get_assignment_tasks": get_assignment_tasks,
+    "get_assignment_progress": get_assignment_progress,
+    "create_assignment_task": create_assignment_task,
+    "get_upcoming_assignments": get_upcoming_assignments,
+    "get_academic_workload": get_academic_workload,
+    
 }
 
 
@@ -977,6 +1014,332 @@ TOOL_DEFINITIONS = [
             ],
         },
     },
+
+    {
+        "type": "function",
+        "name": "get_courses",
+        "description": (
+            "Return the user's courses. Use this when the user asks "
+            "about their courses, classes, or academic subjects."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "create_course",
+        "description": (
+            "Create a new academic course for the user."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "Course code.",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Course name.",
+                },
+                "term": {
+                    "type": "string",
+                    "description": "Academic term for the course.",
+                },
+            },
+            "required": [
+                "code",
+                "name",
+                "term",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "get_course_tasks",
+        "description": (
+            "Return all tasks associated with a specific course."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "course_id": {
+                    "type": "integer",
+                    "description": "ID of the course.",
+                },
+            },
+            "required": [
+                "course_id",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "get_assignments",
+        "description": (
+            "Return the user's academic assignments."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "create_assignment",
+        "description": (
+            "Create a new academic assignment for an existing course."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "course_id": {
+                    "type": "integer",
+                    "description": "ID of the existing course.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Assignment title.",
+                },
+                "due_date": {
+                    "type": "string",
+                    "description": (
+                        "Optional due date in YYYY-MM-DD format."
+                    ),
+                },
+                "estimated_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "Estimated time required to complete the assignment."
+                    ),
+                },
+                "status": {
+                    "type": "string",
+                    "description": (
+                        "Assignment status, such as incomplete "
+                        "or complete."
+                    ),
+                },
+            },
+            "required": [
+                "course_id",
+                "title",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "update_assignment",
+        "description": (
+            "Update an existing academic assignment."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "assignment_id": {
+                    "type": "integer",
+                    "description": "ID of the assignment.",
+                },
+                "course_id": {
+                    "type": "integer",
+                    "description": "ID of the existing course.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Updated assignment title.",
+                },
+                "due_date": {
+                    "type": "string",
+                    "description": (
+                        "Updated due date in YYYY-MM-DD format."
+                    ),
+                },
+                "estimated_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "Updated estimated completion time."
+                    ),
+                },
+                "status": {
+                    "type": "string",
+                    "description": "Updated assignment status.",
+                },
+            },
+            "required": [
+                "assignment_id",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "get_assignment_tasks",
+        "description": (
+            "Return all tasks associated with a specific academic assignment."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "assignment_id": {
+                    "type": "integer",
+                    "description": "ID of the assignment.",
+                },
+            },
+            "required": [
+                "assignment_id",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "get_assignment_progress",
+        "description": (
+            "Return progress and estimated remaining work for an "
+            "academic assignment."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "assignment_id": {
+                    "type": "integer",
+                    "description": "ID of the assignment.",
+                },
+            },
+            "required": [
+                "assignment_id",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "create_assignment_task",
+        "description": (
+            "Create an actionable task associated with an existing "
+            "academic assignment. The task inherits the assignment's "
+            "course and, by default, its due date."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "assignment_id": {
+                    "type": "integer",
+                    "description": "ID of the existing assignment.",
+                },
+                "title": {
+                    "type": "string",
+                    "description": (
+                        "Title of the actionable task. "
+                        "Defaults to the assignment title."
+                    ),
+                },
+                "priority": {
+                    "type": "string",
+                    "description": (
+                        "Priority of the work task: low, medium, or high."
+                    ),
+                },
+                "estimated_minutes": {
+                    "type": "integer",
+                    "description": (
+                        "Estimated time required for this specific task."
+                    ),
+                },
+                "due_date": {
+                    "type": "string",
+                    "description": (
+                        "Optional task-specific due date in YYYY-MM-DD format. "
+                        "Defaults to the assignment due date."
+                    ),
+                },
+            },
+            "required": [
+                "assignment_id",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "get_upcoming_assignments",
+        "description": (
+            "Return academic assignments whose due dates fall within "
+            "a specified date range, along with their associated tasks."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "start_date": {
+                    "type": "string",
+                    "description": "Start date in YYYY-MM-DD format.",
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "End date in YYYY-MM-DD format.",
+                },
+            },
+            "required": [
+                "start_date",
+                "end_date",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "get_academic_workload",
+        "description": (
+            "Calculate academic workload for assignments due "
+            "within a specified date range, including totals "
+            "by assignment and course."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "start_date": {
+                    "type": "string",
+                    "description": "Start date in YYYY-MM-DD format.",
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "End date in YYYY-MM-DD format.",
+                },
+            },
+            "required": [
+                "start_date",
+                "end_date",
+            ],
+        },
+    },
+
+    {
+        "type": "function",
+        "name": "get_course_overview",
+        "description": (
+            "Return a complete overview of a course, including "
+            "its assignments and associated tasks."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "course_id": {
+                    "type": "integer",
+                    "description": "ID of the course.",
+                },
+            },
+            "required": [
+                "course_id",
+            ],
+        },
+    },
 ]
 
 
@@ -994,6 +1357,10 @@ TOOLS_REQUIRING_APPROVAL = {
     "reschedule_event",
     "reschedule_task",
     "complete_task",
+    "create_course",
+    "create_assignment",
+    "update_assignment",
+    "create_assignment_task",
 }
 
 

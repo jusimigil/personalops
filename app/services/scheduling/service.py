@@ -19,6 +19,7 @@ from services.scheduling.rescheduling import ReschedulingService
 
 SCHEDULE_CALENDAR = "term 1"
 DEADLINE_CALENDAR = "exams/assign"
+STUDY_CALENDAR = "study"
 
 class SchedulingService:
 
